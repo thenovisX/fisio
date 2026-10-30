@@ -1,0 +1,28 @@
+# Seguridad básica
+Options -Indexes
+<FilesMatch "^(config\.php|config\.sample\.php|.*\.sqlite)$">
+  Require all denied
+</FilesMatch>
+RedirectMatch 403 ^/(.*/)?(lib|data)/
+
+# Forzar HTTPS (Hostinger da el certificado gratis)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+  # robots.txt y sitemap.xml para Google
+  RewriteRule ^robots\.txt$ robots.php [L]
+  RewriteRule ^sitemap\.xml$ sitemap.php [L]
+  # Pasar la cabecera Authorization a PHP
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Permissions-Policy "camera=(self), geolocation=(), microphone=()"
+</IfModule>

@@ -1,0 +1,53 @@
+name: Preparar rama para Hostinger
+
+# Copia solo la web (carpeta web/ + el panel) a la rama "hostinger".
+# En Hostinger → Git se conecta esa rama, así index.php queda directamente en public_html.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rama-hostinger
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Copiar la app al panel web
+        run: ./scripts/build-panel.sh
+
+      - name: Actualizar la rama hostinger
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          SRC="$GITHUB_WORKSPACE/web"
+          DEST="$RUNNER_TEMP/hostinger"
+          if git ls-remote --exit-code --heads origin hostinger >/dev/null; then
+            git worktree add "$DEST" origin/hostinger
+            cd "$DEST" && git checkout -B hostinger
+          else
+            git worktree add --detach "$DEST"
+            cd "$DEST" && git checkout --orphan hostinger && git rm -rfq .
+          fi
+          # Sustituye todo por el contenido de web/ sin tocar .git
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a "$SRC"/. .
+          rm -rf data/sesiones data/*.sqlite config.php
+          printf 'config.php\ndata/*.sqlite\ndata/sesiones/\nuploads/*\n!uploads/.htaccess\n!uploads/.gitkeep\n' > .gitignore
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Sin cambios en la web"
+          else
+            git commit -q -m "Web desde main ${GITHUB_SHA::7}"
+            git push origin hostinger
+          fi

@@ -1,0 +1,17 @@
+node_modules/
+.DS_Store
+# Datos del servidor (nunca al repositorio)
+web/config.php
+web/data/*.sqlite
+web/uploads/*
+!web/uploads/.htaccess
+!web/uploads/.gitkeep
+*.apk
+web-restaurante.zip
+web/data/sesiones/
+# graphify: solo se versiona el grafo y el informe
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/.graphify_root
+graphify-out/graph.html
+graphify-out/memory/

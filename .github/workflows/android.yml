@@ -1,0 +1,89 @@
+name: Compilar app Android y web
+
+# Solo se ejecuta a mano (GitHub → Actions → «Compilar app Android y web» → Run workflow).
+# La web se sigue publicando sola en la rama hostinger con el otro workflow.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-app
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Comprobar el SDK de Android
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          ls "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/platforms" || echo "::error::No hay SDK de Android en el runner"
+
+      - name: Instalar dependencias
+        working-directory: app
+        run: npm ci
+
+      - name: Copiar la app al proyecto Android
+        working-directory: app
+        run: npx cap sync android
+
+      - name: Compilar APK
+        working-directory: app/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          # Si no hay secretos configurados se usa la clave incluida en el repositorio
+          [ -z "$ANDROID_KEYSTORE_PASSWORD" ] && unset ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_PASSWORD
+          chmod +x gradlew
+          if ! ./gradlew assembleRelease --no-daemon --stacktrace > build.log 2>&1; then
+            # Muestra el error como aviso en GitHub para poder leerlo fácilmente
+            grep -E "error:|What went wrong|FAILURE|Exception|> " build.log | head -40 | tr '\n' ' ' | sed 's/^/::error::/'
+            echo
+            tail -60 build.log
+            exit 1
+          fi
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/Reservas-restaurante.apk"
+
+      - name: Preparar ZIP de la web para Hostinger
+        run: |
+          ./scripts/build-panel.sh
+          cd web && zip -r "$GITHUB_WORKSPACE/web-restaurante.zip" . -x "config.php" "data/*.sqlite" "uploads/*.jpg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-y-web
+          path: |
+            Reservas-restaurante.apk
+            web-restaurante.zip
+
+      - name: Publicar descarga
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ultima-version
+          name: App Android y web (última versión)
+          make_latest: true
+          body: |
+            **Reservas-restaurante.apk**: ábrelo desde el móvil Android para instalar la app de gestión.
+            **web-restaurante.zip**: súbelo y descomprímelo en public_html de Hostinger.
+
+            Compilado automáticamente desde el commit ${{ github.sha }}.
+          files: |
+            Reservas-restaurante.apk
+            web-restaurante.zip

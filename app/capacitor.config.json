@@ -1,0 +1,17 @@
+{
+  "appId": "com.restaurante.gestion",
+  "appName": "Reservas",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "iconColor": "#B3362B"
+    },
+    "SplashScreen": {
+      "backgroundColor": "#14313F",
+      "launchShowDuration": 600
+    }
+  }
+}
