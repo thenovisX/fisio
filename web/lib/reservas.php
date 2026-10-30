@@ -228,7 +228,7 @@ function reservation_spam_guard(string $ip, array $d, ?array $customer): void
     foreach ($who as [$cond, $val]) {
         $n = (int)q("SELECT COUNT(*) FROM reservations WHERE $cond AND deleted = 0 AND rdate >= ? AND status IN ($ph)", array_merge([$val, today()], RES_ACTIVE))->fetchColumn();
         if ($n >= RES_MAX_ACTIVE) {
-            throw new ValidationError(t('Ya tienes %d reservas pendientes o confirmadas. Para hacer otra, cancela alguna o llámanos.', RES_MAX_ACTIVE));
+            throw new ValidationError(t('Ya tienes %d citas pendientes o confirmadas. Para pedir otra, cancela alguna o llámanos.', RES_MAX_ACTIVE));
         }
     }
 }

@@ -1,42 +1,37 @@
-# Backend para webs de restaurantes
+# Plantilla web para centros de fisioterapia
 
-> **¿Eres el dueño del restaurante?** Lee la [guía sencilla](docs/GUIA-CLIENTE.md): instalación en Hostinger, ajustes, WhatsApp y el día a día.
+Base para hacer la web de un centro de fisioterapia: portada con diseño propio, citas online con confirmación por WhatsApp y un panel pensado para el día a día del fisio. Nace del backend de reservas para restaurantes (repositorio `backend`, que no se toca) adaptado a citas por tratamiento.
 
-Base reutilizable para hacer la web de un restaurante. Para cada cliente solo hay que hacer el diseño, en `web/tema/`; todo lo demás ya funciona:
+> **¿Eres el dueño del centro?** La [guía sencilla](docs/GUIA-CLIENTE.md) explica la instalación en Hostinger, los ajustes y WhatsApp (está escrita para restaurantes; el funcionamiento es el mismo).
 
-- **Reservas** en 3 pasos con confirmación por WhatsApp (al pulsar «Reservar» se elige entre reservar online o llamar; llamar se desactiva con un aviso cuando el restaurante está cerrado), aforo con tiempo de mesa (una reserva a las 14:00 con 90 min ocupa sitio hasta las 15:30), días cerrados y antelación mínima.
-- **Cuentas de clientes** con activación por email, recuperación de contraseña por email, historial, cancelación gratis, descarga y borrado de datos. En la app, el administrador ve todas las cuentas (Ajustes → Clientes con cuenta).
-- **Borrar mis datos sin cuenta**: el cliente escribe su email o teléfono en la web (`borrar-datos.php` y la página legal) y confirma con un enlace (por email, o por WhatsApp desde la app); se borra la cuenta, se cancelan sus reservas futuras y se anonimizan las demás.
-- **Rechazar con WhatsApp**: al rechazar una petición, la app propone un mensaje en el idioma del cliente con las horas libres de ese día cerca de la que pidió, o le dice que esperas verle otro día. Las reservas que cancela el cliente llegan como aviso a la app.
-- **Carta** con secciones, fotos, precios, platos agotados y los 14 alérgenos con iconos.
-- **App de gestión** para el móvil (Android y web/iPhone): peticiones, reservas de hoy, calendario, carta y ajustes con buscador.
-- **Usuarios con permisos**: el administrador crea usuarios (por ejemplo, camareros que solo ven las reservas) y decide si pueden gestionar reservas, cambiar la carta o los ajustes.
-- **Horario de cocina** opcional: las reservas se ofrecen solo con la cocina abierta y la web lo muestra bajo el horario.
-- **Emails** desde el hosting o desde Gmail.
-- **Cuatro idiomas** (español, inglés, portugués y gallego) con banderas circulares. Los textos fijos, la ventana de reserva, las cookies, los textos legales, los errores y los emails y WhatsApp al cliente están traducidos a mano (`web/lib/lang/` y `web/lib/legal/`). La carta, la frase corta, la presentación y las políticas se traducen solas al guardar (MyMemory gratis, o Google Translate con clave) y se corrigen en la app: Ajustes → Idiomas de la web. El nombre y los datos de contacto no se traducen. Cada tema añade los suyos en `web/tema/lang.php`.
-- **Menús**: tantos como se quiera (del día, degustación, infantil…), con precio, días, apartados (primero, segundo, postre, café…), suplementos, alérgenos y foto por plato y nota; página propia y botón «Ver menús» activable; cada uno con su interruptor, y la carta principal también se puede quitar de la web. Todo desde Carta en la app.
-- **Fotos ampliables**: cualquier `<img data-zoom>` se abre a pantalla grande con flechas, deslizar y teclado.
-- **Legal**: aviso legal, condiciones, privacidad y cookies (RGPD, LOPDGDD, LSSI y guía de la AEPD, revisados en octubre de 2026). Aviso de cookies con Google Analytics, Tag Manager y el píxel de Meta solo con consentimiento.
-- **SEO** (descripción, datos estructurados, sitemap, Search Console) e **instalable como app** (PWA).
-- **Seguridad**: datos personales cifrados, borrado a las 24 h y bloqueo por intentos fallidos. Ver [SEGURIDAD.md](SEGURIDAD.md).
+Lo que ya funciona:
 
-Incluye un tema de ejemplo («Base») para que la web funcione desde el primer momento.
+- **Citas por tratamiento.** Cada tratamiento tiene su duración (30, 45, 60 min…) y su precio. El paciente elige tratamiento, día y hora libre, y confirma por WhatsApp. Las horas libres se calculan con la duración real: una sesión de 60 min a las 10:00 ocupa hueco hasta las 11:00, y la última hora que se ofrece es la que termina antes de cerrar.
+- **Varios fisios o cabinas a la vez**: el ajuste «Fisios o cabinas a la vez» (`capacity`) dice cuántas citas caben al mismo tiempo.
+- **Panel nuevo** (móvil, ordenador y app Android) inspirado en Wallapop y Spotify:
+  - **Hoy**: quién está en sesión ahora (con barra de progreso), la siguiente cita, peticiones nuevas y la agenda del día con los **huecos libres**: tocar un hueco apunta una cita ahí.
+  - **Agenda**: el mes con puntos según lo lleno que está cada día, el día elegido y cerrar o abrir un día.
+  - **Bandeja**: peticiones de la web como mensajes. Aceptar abre WhatsApp con el texto escrito; rechazar propone otras horas libres.
+  - **Pacientes**: fichas con motivo de consulta, antecedentes, **notas de sesión**, gráfica de **dolor (EVA 0–10)**, historial de citas y **bonos** de sesiones que se descuentan al apuntar la nota.
+  - Botón **+** en el centro para apuntar una cita en una sola hoja (paciente, tratamiento, día y hora).
+  - **Más**: tratamientos como tarjetas, horario, agenda, fotos de la web y contraseña. Lo menos usado (usuarios, correo, idiomas, textos legales, WhatsApp automático) sigue en «Ajustes avanzados» (`panel/avanzado/`).
+- **Tema «Fibra»**: portada artística con fondo de fibras en Three.js, desplazamiento suave (Lenis), animaciones con GSAP y ScrollTrigger y títulos con SplitType. Todas las librerías y fuentes van dentro del tema (sin CDN). Respeta «reducir movimiento» y funciona sin WebGL.
+- **Cuentas de pacientes**, borrado de datos, cuatro idiomas (español, inglés, portugués y gallego), textos legales, SEO, emails por Gmail, WhatsApp automático opcional y seguridad (datos cifrados, bloqueo por intentos): todo lo del backend original, ver más abajo y [SEGURIDAD.md](SEGURIDAD.md).
+
+**Datos clínicos.** Las peticiones de cita de la web se borran 24 h después, como en el original, pero las **fichas de paciente y sus notas no se borran solas**: la ley de autonomía del paciente obliga a guardar la historia clínica al menos 5 años desde el alta. Las notas, el teléfono y el email de la ficha van cifrados. Revisa con el centro el texto de privacidad (Ajustes avanzados → Textos legales) antes de publicar.
 
 ```
 web/                → lo que se sube a Hostinger
-  tema/             → EL DISEÑO: lo único que cambias en cada proyecto (ver TEMA.md)
-  index.php, cuenta.php, legal.php, confirmar.php, carta.php, reservar.php
-                    → «puertas»: hacen la lógica y llaman al tema. No se tocan. carta.php y reservar.php
-                      solo se ven si el tema tiene esas páginas (si no, llevan a la portada).
-  api/              → API que usan la web y la app
-  lib/              → el backend (reservas, clientes, carta, emails, textos legales…)
-  sdk/              → JavaScript y CSS comunes: ventana de reserva, aviso de cookies, cuenta
-  panel/            → la app de gestión en versión web (copia de app/www)
+  tema/             → EL DISEÑO («Fibra»): lo único que cambias en cada proyecto (ver TEMA.md)
+  index.php, cuenta.php, legal.php, confirmar.php…  → «puertas»: hacen la lógica y llaman al tema. No se tocan.
+  api/              → API que usan la web y el panel (ver API.md)
+  lib/              → el backend (citas, pacientes, tratamientos, emails, textos legales…)
+  sdk/              → JavaScript y CSS comunes: ventana de cita, aviso de cookies, cuenta
+  panel/            → el panel en versión web (copia de app/www)
   install.php       → instalador
-app/                → la app Android (Capacitor); app/www es el código de la app
+panel/              → código fuente del panel (React + TypeScript + Tailwind + shadcn/ui)
+app/                → la app Android (Capacitor); app/www es el panel compilado
 scripts/            → utilidades (copiar el panel, generar iconos)
-TEMA.md             → cómo hacer un tema: variables, funciones y atributos que hay disponibles
-API.md              → todas las rutas de la API
 ```
 
 ---
@@ -95,6 +90,8 @@ Guarda una copia de `config.php`: sin él no se pueden leer los datos cifrados.
 
 **Desde el ordenador:** `https://dominio-del-cliente.com/panel/` (el menú pasa al lateral).
 
+Si el teléfono de una cita coincide con el de una ficha, la cita se une sola a ese paciente. Desde una cita sin ficha, «Crear ficha» la crea con sus datos.
+
 ## 3. Enviar los emails desde Gmail
 
 1. En la cuenta de Google, activa la **verificación en 2 pasos**.
@@ -116,11 +113,11 @@ Sin esto, al aceptar una reserva se abre WhatsApp en el móvil con el mensaje es
 
 El token se guarda cifrado y nunca vuelve a la app. Si Meta da error, la reserva queda igualmente «esperando», el error sale en Ajustes y en la ficha de la reserva está **Enviar a mano** con el enlace de siempre. Hace falta cURL en el servidor (Hostinger lo trae).
 
-## Cómo funcionan las reservas
+## Cómo funcionan las citas
 
-1. El cliente reserva en la web (teléfono obligatorio, email opcional). Ve «Petición realizada».
-2. En la app aparece en **Peticiones**. Al pulsar **Confirmar por WhatsApp** se abre WhatsApp con el mensaje y el enlace. Con el WhatsApp automático activado, el botón es **Aceptar y enviar WhatsApp automático** y el mensaje sale solo.
-3. El cliente abre el enlace, ve sus datos y pulsa **Confirmar mi reserva** (abrir el enlace no confirma: WhatsApp lo abre solo para la vista previa). La app avisa.
+1. El paciente elige tratamiento, día y hora en la web (teléfono obligatorio, email opcional). Ve «Petición realizada».
+2. En el panel aparece en **Bandeja**. Al pulsar **Aceptar** se abre WhatsApp con el mensaje y el enlace. Con el WhatsApp automático activado, el botón es **Aceptar y enviar WhatsApp automático** y el mensaje sale solo.
+3. El cliente abre el enlace, ve sus datos y pulsa **Confirmar mi cita** (abrir el enlace no confirma: WhatsApp lo abre solo para la vista previa). La app avisa.
 4. Desde el mismo enlace puede **cancelarla**. Si el restaurante la cancela o la borra en la app, el enlace dice «Reserva cancelada».
 5. Si el cliente puso email o tiene cuenta, recibe también los avisos por email.
 
@@ -137,7 +134,14 @@ cd web && php -S localhost:8080
 # Abre http://localhost:8080/install.php y elige SQLite
 ```
 
-**Cambiar la app de gestión**: edita `app/www/` y ejecuta `./scripts/build-panel.sh` para copiarla a `web/panel/`.
+**Cambiar el panel**: el código está en `panel/` (React). Para compilarlo:
+
+```bash
+cd panel && pnpm i && npx vite build   # deja el resultado en app/www
+cd .. && bash scripts/build-panel.sh   # lo copia a web/panel
+```
+
+El panel clásico está en `panel/public/avanzado/` y se copia tal cual.
 
 **Compilar el APK en tu PC** (Android SDK y JDK 21): `cd app && npm install && npm run apk`.
 

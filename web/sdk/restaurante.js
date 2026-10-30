@@ -497,7 +497,7 @@
     b.addEventListener('click', function () {
       b.disabled = true;
       api('c_confirm', { id: +b.dataset.confirmRes }).then(function () {
-        toast(T('Reserva confirmada'));
+        toast(T('Cita confirmada'));
         setTimeout(function () { location.reload(); }, 700);
       }).catch(function (e) { toast(e.message); b.disabled = false; });
     });
@@ -505,10 +505,10 @@
 
   $$('[data-cancel]').forEach(function (b) {
     b.addEventListener('click', function () {
-      if (!confirm(b.dataset.when ? T('¿Cancelar la reserva del %s?', b.dataset.when) : T('¿Cancelar la reserva?'))) return;
+      if (!confirm(b.dataset.when ? T('¿Cancelar la cita del %s?', b.dataset.when) : T('¿Cancelar la cita?'))) return;
       b.disabled = true;
       api('c_cancel', { id: +b.dataset.cancel }).then(function () {
-        toast(T('Reserva cancelada'));
+        toast(T('Cita cancelada'));
         setTimeout(function () { location.reload(); }, 700);
       }).catch(function (e) { toast(e.message); b.disabled = false; });
     });

@@ -1,6 +1,6 @@
 {
   "appId": "com.restaurante.gestion",
-  "appName": "Reservas",
+  "appName": "Agenda fisio",
   "webDir": "www",
   "android": {
     "allowMixedContent": false

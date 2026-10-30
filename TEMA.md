@@ -119,13 +119,15 @@ Cada hueco aparece en la app (Ajustes → Fotos de la web) con su `label` para q
 
 ## Confirmar la reserva: el botón es obligatorio
 
-Abrir el enlace del WhatsApp **no confirma** la reserva: WhatsApp, Telegram y los antivirus del correo abren los enlaces solos para hacer la vista previa, y confirmarían reservas sin que nadie las viera. Cuando `$pendiente` es `true`, la página tiene que mostrar los datos y el botón que pinta `<?= $confirmar_form('Confirmar mi reserva', 'mi-clase-de-boton') ?>`. La reserva se confirma cuando el cliente lo pulsa.
+Abrir el enlace del WhatsApp **no confirma** la reserva: WhatsApp, Telegram y los antivirus del correo abren los enlaces solos para hacer la vista previa, y confirmarían reservas sin que nadie las viera. Cuando `$pendiente` es `true`, la página tiene que mostrar los datos y el botón que pinta `<?= $confirmar_form('Confirmar mi cita', 'mi-clase-de-boton') ?>`. La reserva se confirma cuando el cliente lo pulsa.
 
-Pon también `<?= $cancelar_form('Cancelar la reserva', 'mi-clase') ?>`: deja al cliente cancelar desde el mismo enlace, mientras la reserva está pendiente o confirmada. Después la página muestra «Reserva cancelada» (en `$error`), y lo mismo si el restaurante la cancela o la borra desde el panel.
+Pon también `<?= $cancelar_form('Cancelar la cita', 'mi-clase') ?>`: deja al cliente cancelar desde el mismo enlace, mientras la reserva está pendiente o confirmada. Después la página muestra «Reserva cancelada» (en `$error`), y lo mismo si el restaurante la cancela o la borra desde el panel.
 
 ## Reservar: `data-book`
 
-Cualquier elemento con `data-book` abre la ventana de reserva, por ejemplo `<a href="#reservar" data-book>Reservar</a>`. No hace falta nada más.
+Cualquier elemento con `data-book` abre la ventana de cita, por ejemplo `<a href="#reservar" data-book>Pedir cita</a>`. No hace falta nada más.
+
+Con el id de un tratamiento, `data-book="12"`, la ventana se abre con ese tratamiento ya elegido. Úsalo en las tarjetas de tratamientos: `<a href="#reservar" data-book="<?= (int)$d['id'] ?>">`. Cada tratamiento de `$carta` trae `duration` (minutos), además de `name`, `description`, `price` y `photo`. El primer paso de la ventana es «¿Qué necesitas?» (tratamiento y día) y las horas que se ofrecen ya tienen en cuenta la duración.
 
 Si el restaurante tiene teléfono, la ventana empieza preguntando **«¿Cómo quieres reservar?»**: reservar online o llamar. «Llamar» se desactiva y avisa («Ahora estamos cerrados. Podrás llamarnos hoy a las 20:00») cuando la hora del restaurante queda fuera de su horario de apertura o es un día cerrado. Sin teléfono, la ventana va directa a la reserva online.
 

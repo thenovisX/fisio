@@ -74,7 +74,7 @@ $tratamientos = carta_publica()['categories'];
 
     <section class="bk-pane" data-pane="3" hidden>
       <?php if ($c): ?>
-        <p class="bk-who"><?= t('Reservas como') ?> <strong><?= h($c['name']) ?></strong> · <?= h($c['phone'] ?: $c['email']) ?>. <button type="button" class="bk-link" id="bk-edit-who"><?= t('Usar otros datos') ?></button></p>
+        <p class="bk-who"><?= t('Pides cita como') ?> <strong><?= h($c['name']) ?></strong> · <?= h($c['phone'] ?: $c['email']) ?>. <button type="button" class="bk-link" id="bk-edit-who"><?= t('Usar otros datos') ?></button></p>
       <?php else: ?>
         <p class="bk-who"><?= t('¿Tienes cuenta? <a href="cuenta.php">Entra</a> y no tendrás que escribir tus datos.') ?></p>
       <?php endif; ?>
@@ -82,13 +82,13 @@ $tratamientos = carta_publica()['categories'];
         <label><?= t('Nombre') ?> <input name="name" maxlength="80" autocomplete="name" value="<?= h($c['name'] ?? '') ?>"></label>
         <label><?= t('Teléfono móvil') ?> <span><?= t('obligatorio: te enviaremos un WhatsApp para confirmar') ?></span><input name="phone" type="tel" maxlength="30" autocomplete="tel" required value="<?= h($c['phone'] ?? '') ?>"></label>
         <label>Email <span><?= t('opcional') ?></span><input name="email" type="email" maxlength="120" autocomplete="email" aria-describedby="bk-email-help" value="<?= h($c['email'] ?? '') ?>"></label>
-        <p class="bk-help" id="bk-email-help"><?= $c ? t('Ponlo si quieres recibir la confirmación por email.') : t('Ponlo si quieres recibir la confirmación por email o ver esta reserva en una cuenta: solo aparecerá en la cuenta que crees con este mismo email. Sin email, la reserva no se puede añadir a una cuenta.') ?></p>
+        <p class="bk-help" id="bk-email-help"><?= $c ? t('Ponlo si quieres recibir la confirmación por email.') : t('Ponlo si quieres recibir la confirmación por email o ver esta cita en una cuenta: solo aparecerá en la cuenta que crees con este mismo email. Sin email, la cita no se puede añadir a una cuenta.') ?></p>
       </div>
       <label><?= t('Algo que debamos saber') ?> <span><?= t('opcional') ?></span><textarea name="notes" rows="2" maxlength="500" placeholder="<?= t('Dónde te duele, desde cuándo, si vienes de parte de tu médico…') ?>"></textarea></label>
       <label class="bk-hp" aria-hidden="true"><?= t('No rellenar') ?> <input name="website" tabindex="-1" autocomplete="off"></label>
       <div class="bk-policy">
         <p><?= t('Cancelar desde el enlace es gratis. Si no puedes venir, avísanos con tiempo para dar tu hueco a otra persona.') ?></p>
-        <label class="bk-check"><input type="checkbox" name="privacy" value="1"><span><?= t('Acepto las <a href="legal.php#politicas" target="_blank">políticas de reserva</a> y las <a href="legal.php#condiciones" target="_blank">condiciones de uso</a>, y he leído la <a href="legal.php#privacidad" target="_blank">política de privacidad</a>.') ?></span></label>
+        <label class="bk-check"><input type="checkbox" name="privacy" value="1"><span><?= t('Acepto las <a href="legal.php#politicas" target="_blank">normas del centro</a> y las <a href="legal.php#condiciones" target="_blank">condiciones de uso</a>, y he leído la <a href="legal.php#privacidad" target="_blank">política de privacidad</a>.') ?></span></label>
         <p class="bk-info"><?= t('<strong>Protección de datos.</strong> Responsable: %s. Finalidad: gestionar tu cita; el teléfono solo se usa para enviarte el WhatsApp de confirmación. Los datos de la petición se borran 24 horas después de la cita y no se ceden a nadie; si eres paciente del centro, tu ficha clínica se guarda aparte el tiempo que marca la ley. Puedes acceder a ellos, corregirlos o borrarlos escribiendo a %s.', h($s['owner_name'] ?: $s['name']), h($s['email'] ?: $s['phone'] ?: t('nuestro contacto'))) ?> <a href="legal.php#privacidad" target="_blank"><?= t('Más información') ?></a>.</p>
       </div>
       <p class="bk-err" id="bk-err" role="alert"></p>
