@@ -1,20 +1,22 @@
 <?php
 /*
- * Ventana de reserva en 3 pasos (la controla sdk/restaurante.js). Se abre con cualquier elemento que
- * tenga el atributo data-book. Sus colores y tipografías se cambian desde el tema con variables CSS
+ * Ventana para pedir cita en 3 pasos (la controla sdk/restaurante.js): tratamiento y día, hora y datos.
+ * Se abre con cualquier elemento que tenga el atributo data-book; con data-book="ID" sale ya elegido
+ * ese tratamiento. Sus colores y tipografías se cambian desde el tema con variables CSS
  * (--r-bg, --r-text, --r-accent…; ver TEMA.md). Todas sus clases empiezan por bk- para no chocar con el tema.
  */
 $s = settings();
 $c = current_customer();
 $wa = wa_number($s['whatsapp']);
 $hayOpc = $s['phone'] || $wa;
+$tratamientos = carta_publica()['categories'];
 ?>
 <dialog class="bk" id="bk" aria-labelledby="bk-title">
   <form class="bk-in" id="bk-form" method="dialog" novalidate>
     <header class="bk-head">
       <div>
         <p class="bk-step" id="bk-step"><?= t('Paso %d de 3', 1) ?></p>
-        <h2 class="bk-h" id="bk-title"><?= t('Reservar mesa') ?></h2>
+        <h2 class="bk-h" id="bk-title"><?= t('Pedir cita') ?></h2>
         <p class="bk-sum" id="bk-sum" aria-live="polite"></p>
       </div>
       <button class="bk-close" type="button" data-close aria-label="<?= t('Cerrar') ?>">×</button>
@@ -24,8 +26,8 @@ $hayOpc = $s['phone'] || $wa;
     <section class="bk-pane" data-pane="0" hidden>
       <div class="bk-opts">
         <button class="bk-opt" type="button" data-next="1">
-          <b><?= t('Reservar online') ?></b>
-          <span><?= t('Elige día y hora y te confirmamos por WhatsApp.') ?></span>
+          <b><?= t('Pedir cita online') ?></b>
+          <span><?= t('Elige tratamiento, día y hora y te confirmamos por WhatsApp.') ?></span>
         </button>
         <?php if ($s['phone']): ?>
         <a class="bk-opt" id="bk-call" href="<?= h(tel_href($s['phone'])) ?>" data-href="<?= h(tel_href($s['phone'])) ?>">
@@ -36,7 +38,7 @@ $hayOpc = $s['phone'] || $wa;
         <?php if ($wa): ?>
         <a class="bk-opt" href="https://wa.me/<?= h($wa) ?>" target="_blank" rel="noopener">
           <b><?= t('Escribir por WhatsApp') ?></b>
-          <span><?= t('Pregúntanos o reserva por mensaje.') ?></span>
+          <span><?= t('Pregúntanos o pide cita por mensaje.') ?></span>
         </a>
         <?php endif; ?>
       </div>
@@ -44,17 +46,19 @@ $hayOpc = $s['phone'] || $wa;
     <?php endif; ?>
 
     <section class="bk-pane" data-pane="1">
+      <?php if ($tratamientos): ?>
       <fieldset>
-        <legend><?= t('¿Cuántos sois?') ?></legend>
-        <div class="bk-chips" id="bk-people">
-          <?php for ($i = 1; $i <= min(8, (int)$s['max_people']); $i++): ?>
-            <label><input type="radio" name="people" value="<?= $i ?>" <?= $i === 2 ? 'checked' : '' ?>><span><?= $i ?></span></label>
-          <?php endfor; ?>
-          <?php if ((int)$s['max_people'] > 8): ?>
-            <label class="bk-more"><select name="people_more" aria-label="<?= t('Más personas') ?>"><option value=""><?= t('Más') ?></option><?php for ($i = 9; $i <= (int)$s['max_people']; $i++): ?><option value="<?= $i ?>"><?= $i ?></option><?php endfor; ?></select></label>
-          <?php endif; ?>
+        <legend><?= t('¿Qué necesitas?') ?></legend>
+        <div class="bk-svcs" id="bk-svcs">
+          <?php foreach ($tratamientos as $cat): ?>
+            <p class="bk-svc-cat"><?= h($cat['name']) ?></p>
+            <?php foreach ($cat['dishes'] as $d): ?>
+              <label class="bk-svc"><input type="radio" name="service" value="<?= (int)$d['id'] ?>" data-min="<?= (int)$d['duration'] ?>" data-name="<?= h($d['name']) ?>"><span><b><?= h($d['name']) ?></b><small><?= (int)$d['duration'] ?> min<?= $d['price'] > 0 ? ' · ' . precio($d['price']) : '' ?></small></span></label>
+            <?php endforeach; ?>
+          <?php endforeach; ?>
         </div>
       </fieldset>
+      <?php endif; ?>
       <fieldset>
         <legend><?= t('¿Qué día?') ?></legend>
         <div class="bk-days" id="bk-days" role="radiogroup" aria-label="<?= t('Día') ?>"></div>
@@ -80,12 +84,12 @@ $hayOpc = $s['phone'] || $wa;
         <label>Email <span><?= t('opcional') ?></span><input name="email" type="email" maxlength="120" autocomplete="email" aria-describedby="bk-email-help" value="<?= h($c['email'] ?? '') ?>"></label>
         <p class="bk-help" id="bk-email-help"><?= $c ? t('Ponlo si quieres recibir la confirmación por email.') : t('Ponlo si quieres recibir la confirmación por email o ver esta reserva en una cuenta: solo aparecerá en la cuenta que crees con este mismo email. Sin email, la reserva no se puede añadir a una cuenta.') ?></p>
       </div>
-      <label><?= t('Algo que debamos saber') ?> <span><?= t('opcional') ?></span><textarea name="notes" rows="2" maxlength="500" placeholder="<?= t('Alergias, celebración, trona…') ?>"></textarea></label>
+      <label><?= t('Algo que debamos saber') ?> <span><?= t('opcional') ?></span><textarea name="notes" rows="2" maxlength="500" placeholder="<?= t('Dónde te duele, desde cuándo, si vienes de parte de tu médico…') ?>"></textarea></label>
       <label class="bk-hp" aria-hidden="true"><?= t('No rellenar') ?> <input name="website" tabindex="-1" autocomplete="off"></label>
       <div class="bk-policy">
-        <p><?= t('Cancelar es siempre gratis. Guardamos la mesa %d minutos.', (int)$s['late_minutes']) ?></p>
+        <p><?= t('Cancelar desde el enlace es gratis. Si no puedes venir, avísanos con tiempo para dar tu hueco a otra persona.') ?></p>
         <label class="bk-check"><input type="checkbox" name="privacy" value="1"><span><?= t('Acepto las <a href="legal.php#politicas" target="_blank">políticas de reserva</a> y las <a href="legal.php#condiciones" target="_blank">condiciones de uso</a>, y he leído la <a href="legal.php#privacidad" target="_blank">política de privacidad</a>.') ?></span></label>
-        <p class="bk-info"><?= t('<strong>Protección de datos.</strong> Responsable: %s. Finalidad: gestionar tu reserva; el teléfono solo se usa para enviarte el WhatsApp de confirmación. Tus datos se borran 24 horas después de la reserva y no se ceden a nadie. Puedes acceder a ellos, corregirlos o borrarlos escribiendo a %s.', h($s['owner_name'] ?: $s['name']), h($s['email'] ?: $s['phone'] ?: t('nuestro contacto'))) ?> <a href="legal.php#privacidad" target="_blank"><?= t('Más información') ?></a>.</p>
+        <p class="bk-info"><?= t('<strong>Protección de datos.</strong> Responsable: %s. Finalidad: gestionar tu cita; el teléfono solo se usa para enviarte el WhatsApp de confirmación. Los datos de la petición se borran 24 horas después de la cita y no se ceden a nadie; si eres paciente del centro, tu ficha clínica se guarda aparte el tiempo que marca la ley. Puedes acceder a ellos, corregirlos o borrarlos escribiendo a %s.', h($s['owner_name'] ?: $s['name']), h($s['email'] ?: $s['phone'] ?: t('nuestro contacto'))) ?> <a href="legal.php#privacidad" target="_blank"><?= t('Más información') ?></a>.</p>
       </div>
       <p class="bk-err" id="bk-err" role="alert"></p>
       <div class="bk-nav"><button class="bk-btn" type="button" data-next="2"><?= t('Atrás') ?></button><button class="bk-btn bk-btn-main" type="button" id="bk-send"><?= t('Enviar petición') ?></button></div>

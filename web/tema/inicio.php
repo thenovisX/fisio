@@ -1,155 +1,123 @@
 <?php
 /*
- * Portada del tema Base. Variables: $s (ajustes), $cliente (o null), $carta (categorías con platos y alérgenos), $menus (lista, puede estar vacía), $carta_on, $menus_button.
- * Funciones útiles: photo_img(), horario_hoy(), politicas(), al_icon(), precio(). Ver TEMA.md.
+ * Portada del tema Fibra. Variables: $s (ajustes), $cliente (o null), $carta (categorías con tratamientos),
+ * $menus (bonos o packs con precio cerrado; puede estar vacía), $carta_on, $menus_button.
+ * Cada tratamiento lleva su botón con data-book="ID": abre la ventana de cita con ese tratamiento elegido.
+ * La animación (tema.js) solo añade movimiento: sin JavaScript todo se ve y se puede reservar igual.
  */
 require __DIR__ . '/partes.php';
-$alNames = array_column($carta['allergens'], 'name', 'key');
-$usados = [];
-foreach ($carta['categories'] as $cat) foreach ($cat['dishes'] as $d) foreach ($d['allergens'] as $k) $usados[$k] = true;
-$menuSinAlg = false; // ¿algún plato de los menús sin alérgenos puestos?
-foreach ($menus as $m) foreach ($m['courses'] as $c) foreach ($c['dishes'] as $d) if (!$d['allergens']) $menuSinAlg = true;
+$tratamientos = [];
+foreach ($carta['categories'] as $cat) foreach ($cat['dishes'] as $d) $tratamientos[] = $d + ['cat' => $cat['name']];
+$hoy = horario_hoy();
+$cerradoHoy = in_array($hoy, [t('Cerrado'), t('Cerrado hoy')], true);
+$cinta = array_values(array_filter(array_map('trim', explode(',', $s['ribbon'] ?: $s['tagline']))));
+$manifiesto = $s['description'] ?: t('Escuchamos tu historia, exploramos cómo te mueves y te explicamos qué te pasa. Después trabajamos juntos, con las manos y con ejercicio, hasta que vuelvas a hacer lo que te gusta sin pensar en el dolor.');
 abrir($s['name'] . ($s['tagline'] ? ' · ' . $s['tagline'] : ''), 'inicio');
 ?>
+<canvas class="fibras" id="fibras" aria-hidden="true"></canvas>
+<?= fibras_svg('fibras-fallback') ?>
+
 <main id="main">
-  <section class="portada">
-    <div class="portada-foto"><?= photo_img('portada', 1600, '100vw', 'fetchpriority="high"') ?></div>
-    <div class="cont portada-txt">
-      <p class="etiqueta"><?= h(in_array(horario_hoy(), [t('Cerrado'), t('Cerrado hoy')], true) ? t('Hoy cerrado') : t('Hoy') . ': ' . horario_hoy()) ?></p>
-      <h1><?= h($s['name']) ?></h1>
-      <?php if ($s['tagline']): ?><p class="portada-frase"><?= h($s['tagline']) ?></p><?php endif; ?>
-      <div class="botones">
-        <a class="boton boton-acento" href="#reservar" data-book><?= t('Reservar mesa') ?></a>
-        <?php if ($carta_on): ?><a class="boton boton-claro" href="#carta"><?= t('Ver la carta') ?></a><?php endif; ?>
-        <?php if ($menus && $menus_button): ?><a class="boton boton-claro" href="#menus"><?= t('Ver menús') ?></a><?php endif; ?>
-      </div>
+  <section class="hero" data-hero>
+    <p class="hero-kicker"><span><?= t('Fisioterapia') ?></span><?php if ($s['city']): ?><span><?= h($s['city']) ?></span><?php endif; ?><span class="hero-hoy"><?= h($cerradoHoy ? t('Hoy cerrado') : t('Hoy') . ' ' . $hoy) ?></span></p>
+    <h1 class="hero-t" data-hero-title>
+      <span class="hero-l1"><?= t('Vuelve a') ?></span>
+      <em class="hero-l2"><?= t('moverte') ?></em>
+    </h1>
+    <p class="hero-frase"><?= h($s['tagline'] ?: $s['name']) ?></p>
+    <a class="sello" href="#reservar" data-book data-magnet aria-label="<?= t('Pedir cita') ?>">
+      <svg viewBox="0 0 200 200" aria-hidden="true"><defs><path id="sello-c" d="M100,100 m-74,0 a74,74 0 1,1 148,0 a74,74 0 1,1 -148,0"/></defs><text><textPath href="#sello-c"><?= h(t('Pide tu cita · en un minuto ·')) ?> <?= h(t('Pide tu cita · en un minuto ·')) ?></textPath></text></svg>
+      <span class="sello-flecha">↗</span>
+    </a>
+    <p class="hero-scroll" aria-hidden="true"><span></span><?= t('Desliza') ?></p>
+  </section>
+
+  <?php if ($cinta): ?>
+  <section class="cinta" aria-label="<?= t('Especialidades') ?>">
+    <div class="cinta-pista" data-cinta>
+      <?php for ($k = 0; $k < 3; $k++): ?><p<?= $k ? ' aria-hidden="true"' : '' ?>><?php foreach ($cinta as $c): ?><span><?= h($c) ?></span><i>✳</i><?php endforeach; ?></p><?php endfor; ?>
+    </div>
+  </section>
+  <?php endif; ?>
+
+  <section class="manifiesto" id="centro">
+    <p class="etiqueta"><?= t('Cómo trabajamos') ?></p>
+    <p class="manifiesto-t" data-words><?= h($manifiesto) ?></p>
+    <div class="manifiesto-fotos">
+      <figure class="foto-flota foto-a" data-depth="0.25"><?= photo('centro') ? photo_img('centro', 1000, '(max-width: 760px) 80vw, 34vw', 'loading="lazy" data-zoom') : fibras_svg('foto-vacia') ?><figcaption><?= t('El centro') ?></figcaption></figure>
+      <figure class="foto-flota foto-b" data-depth="-0.18"><?= photo('equipo') ? photo_img('equipo', 800, '(max-width: 760px) 60vw, 24vw', 'loading="lazy" data-zoom') : fibras_svg('foto-vacia foto-vacia-b') ?><figcaption><?= t('El equipo') ?></figcaption></figure>
     </div>
   </section>
 
-  <section class="seccion" id="nosotros">
-    <div class="cont dos">
-      <div>
-        <p class="etiqueta"><?= t('Nosotros') ?></p>
-        <h2 class="titulo"><?= h($s['tagline'] ?: $s['name']) ?></h2>
-        <p class="texto-grande"><?= nl2br(h($s['description'] ?: t('Escribe aquí la presentación del restaurante desde la app: Ajustes → Datos del restaurante.'))) ?></p>
-      </div>
-      <figure class="foto-marco"><?= photo_img('sala', 1000, '(max-width: 800px) 100vw, 45vw', 'loading="lazy" data-zoom') ?></figure>
+  <section class="trat" id="tratamientos" aria-labelledby="trat-t">
+    <div class="trat-cab">
+      <p class="etiqueta"><?= t('Tratamientos') ?></p>
+      <h2 class="trat-t" id="trat-t" data-split><?= t('Elige y reserva') ?></h2>
+      <p class="trat-sub"><?= t('Cada tratamiento con su duración y su precio. Toca uno y elige la hora: así de fácil.') ?></p>
     </div>
+    <?php if ($tratamientos): ?>
+    <div class="trat-pista" data-pista>
+      <?php foreach ($tratamientos as $i => $d): ?>
+      <article class="tarjeta<?= $d['featured'] ? ' es-destacado' : '' ?>" style="--i: <?= $i ?>">
+        <p class="tarjeta-n"><?= str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT) ?><span><?= h($d['cat']) ?></span></p>
+        <?php if ($d['photo']): ?><img class="tarjeta-foto" src="<?= h($d['photo']) ?>" alt="" loading="lazy"><?php endif; ?>
+        <h3><?= h($d['name']) ?></h3>
+        <?php if ($d['description'] !== ''): ?><p class="tarjeta-desc"><?= h($d['description']) ?></p><?php endif; ?>
+        <p class="tarjeta-datos"><span><?= (int)$d['duration'] ?> min</span><?php if ($d['price'] > 0): ?><span><?= precio($d['price']) ?></span><?php endif; ?></p>
+        <a class="tarjeta-boton" href="#reservar" data-book="<?= (int)$d['id'] ?>"><?= t('Reservar') ?> <span aria-hidden="true">→</span></a>
+      </article>
+      <?php endforeach; ?>
+    </div>
+    <?php else: ?>
+      <p class="trat-sub"><?= t('Los tratamientos aparecerán aquí en cuanto se añadan desde la app.') ?></p>
+    <?php endif; ?>
+  </section>
+
+  <section class="pasos" aria-labelledby="pasos-t" data-pasos>
+    <h2 class="visually-hidden" id="pasos-t"><?= t('Pedir cita en tres pasos') ?></h2>
+    <div class="paso" data-paso><b>1</b><p><?= t('Elige el tratamiento') ?></p><small><?= t('Si no sabes cuál, pide una primera valoración.') ?></small></div>
+    <div class="paso" data-paso><b>2</b><p><?= t('Elige día y hora') ?></p><small><?= t('Solo ves horas libres de verdad, con el tiempo justo para tu sesión.') ?></small></div>
+    <div class="paso" data-paso><b>3</b><p><?= t('Confirma por WhatsApp') ?></p><small><?= t('Te llega un mensaje con un enlace. Un toque y listo. Cancelar es gratis.') ?></small></div>
+    <a class="pildora pildora-grande" href="#reservar" data-book data-magnet><?= t('Pedir cita ahora') ?></a>
   </section>
 
   <?php if ($menus): ?>
-  <section class="seccion" id="menus">
-    <div class="cont">
-      <p class="etiqueta"><?= t('Menús') ?></p>
-      <h2 class="titulo"><?= t('Precio cerrado, platos a elegir') ?></h2>
-        <?php if ($menus): ?>
-          <?php if (count($menus) > 1): ?>
-            <nav class="carta-nav" aria-label="<?= t('Menús') ?>"><?php foreach ($menus as $m): ?><a href="#menu-<?= h($m['id']) ?>"><?= h($m['title']) ?></a><?php endforeach; ?></nav>
-          <?php endif; ?>
-          <?php foreach ($menus as $m): ?>
-          <article class="menu-dia" id="menu-<?= h($m['id']) ?>" aria-labelledby="menu-t-<?= h($m['id']) ?>">
-            <div class="menu-dia-cab">
-              <h3 id="menu-t-<?= h($m['id']) ?>"><?= h($m['title']) ?></h3>
-              <p class="menu-dia-precio"><?= precio($m['price']) ?></p>
-              <p class="menu-dia-dias"><?= h(mb_strtoupper(mb_substr($m['days_text'], 0, 1)) . mb_substr($m['days_text'], 1)) ?><?php if (!$m['every_day']): ?> · <strong><?= $m['today'] ? t('Hoy sí') : t('Hoy no') ?></strong><?php endif; ?></p>
-            </div>
-            <div class="menu-dia-cursos">
-              <?php foreach ($m['courses'] as $c): ?>
-                <section>
-                  <h4><?= h($c['name']) ?><?php if (count($c['dishes']) > 1): ?> <small><?= t('a elegir') ?></small><?php endif; ?></h4>
-                  <ul>
-                    <?php foreach ($c['dishes'] as $d): ?>
-                      <li<?= $d['photo'] ? ' class="con-foto"' : '' ?>><?php if ($d['photo']): ?><img class="menu-dia-foto" src="<?= h($d['photo']) ?>" alt="" loading="lazy" data-zoom data-zoom-group="menu-<?= h($m['id']) ?>" data-zoom-caption="<?= h($d['name']) ?>"><?php endif; ?><span><?= h($d['name']) ?><?php if ($d['extra'] > 0): ?> <span class="menu-dia-sup" title="<?= t('Suplemento') ?>">+<?= euros($d['extra']) ?> €</span><?php endif; ?><?php if ($d['desc'] !== ''): ?><small><?= h($d['desc']) ?></small><?php endif; ?><?php if ($d['allergens']): ?><span class="plato-al"><?php foreach ($d['allergens'] as $k): ?><?= al_icon($k, 20, $alNames[$k] ?? $k) ?><?php endforeach; ?></span><?php endif; ?></span></li>
-                    <?php endforeach; ?>
-                  </ul>
-                </section>
-              <?php endforeach; ?>
-            </div>
-            <?php if ($m['note'] !== ''): ?><p class="menu-dia-nota"><?= nl2br(h($m['note'])) ?></p><?php endif; ?>
-            <p class="nota"><?= $menuSinAlg ? t('Pregúntanos por los alérgenos de los platos del menú.') : t('Si tienes alguna alergia o intolerancia, dínoslo antes de pedir: te diremos qué platos puedes tomar o cómo adaptarlos.') ?></p>
-          </article>
-          <?php endforeach; ?>
-        <?php endif; ?>
+  <section class="bonos" id="bonos" aria-labelledby="bonos-t">
+    <p class="etiqueta"><?= t('Bonos') ?></p>
+    <h2 class="bonos-t" id="bonos-t" data-split><?= t('Sesiones que cunden') ?></h2>
+    <div class="bonos-lista">
+      <?php foreach ($menus as $m): ?>
+      <article class="bono">
+        <h3><?= h($m['title']) ?></h3>
+        <p class="bono-precio"><?= precio($m['price']) ?></p>
+        <?php foreach ($m['courses'] as $c): ?><p class="bono-linea"><b><?= h($c['name']) ?></b> <?= h(implode(' · ', array_column($c['dishes'], 'name'))) ?></p><?php endforeach; ?>
+        <?php if ($m['note'] !== ''): ?><p class="nota"><?= nl2br(h($m['note'])) ?></p><?php endif; ?>
+      </article>
+      <?php endforeach; ?>
     </div>
   </section>
   <?php endif; ?>
 
-  <?php if ($carta_on || !$menus): ?>
-  <section class="seccion seccion-papel" id="carta">
-    <div class="cont">
-      <p class="etiqueta"><?= t('La carta') ?></p>
-      <h2 class="titulo"><?= t('Para compartir o para ti solo') ?></h2>
-      <?php if ($carta_on): ?>
-      <?php if (!$carta['categories']): ?>
-        <?php if (!$menus): ?><p><?= t('La carta aparecerá aquí en cuanto se añadan platos desde la app.') ?></p><?php endif; ?>
-      <?php else: ?>
-        <nav class="carta-nav" aria-label="<?= t('Secciones de la carta') ?>">
-          <?php foreach ($carta['categories'] as $cat): ?><a href="#cat-<?= $cat['id'] ?>"><?= h($cat['name']) ?></a><?php endforeach; ?>
-        </nav>
-        <div class="carta">
-          <?php foreach ($carta['categories'] as $ci => $cat): ?>
-            <details class="carta-sec" id="cat-<?= $cat['id'] ?>"<?= $ci === 0 ? ' open' : '' ?>>
-              <summary><h3><?= h($cat['name']) ?></h3><span class="carta-sec-n"><?= count($cat['dishes']) ?></span></summary>
-              <ul>
-                <?php foreach ($cat['dishes'] as $d): ?>
-                  <li class="plato<?= $d['featured'] ? ' plato-destacado' : '' ?>">
-                    <?php if ($d['photo']): ?><img class="plato-foto" src="<?= h($d['photo']) ?>" alt="" loading="lazy" data-zoom data-zoom-group="platos" data-zoom-caption="<?= h($d['name']) ?>"><?php endif; ?>
-                    <div class="plato-txt">
-                      <p class="plato-linea"><span class="plato-nombre"><?= h($d['name']) ?></span><span class="plato-precio"><?= precio($d['price']) ?></span></p>
-                      <?php if ($d['featured']): ?><p class="plato-marca"><?= t('Recomendado de la casa') ?></p><?php endif; ?>
-                      <?php if ($d['description']): ?><p class="plato-desc"><?= h($d['description']) ?></p><?php endif; ?>
-                      <?php if ($d['allergens']): ?><p class="plato-al"><?php foreach ($d['allergens'] as $k): ?><?= al_icon($k, 22, $alNames[$k] ?? $k) ?><?php endforeach; ?></p><?php endif; ?>
-                    </div>
-                  </li>
-                <?php endforeach; ?>
-              </ul>
-            </details>
-          <?php endforeach; ?>
-        </div>
-        <?php if ($usados): ?>
-          <details class="alergenos">
-            <summary><?= t('Qué significa cada icono de alérgenos') ?></summary>
-            <ul>
-              <?php foreach ($carta['allergens'] as $a): if (empty($usados[$a['key']])) continue; ?>
-                <li><?= al_icon($a['key'], 28) ?><span><strong><?= h($a['name']) ?></strong> <?= h($a['desc']) ?></span></li>
-              <?php endforeach; ?>
-            </ul>
-            <p class="nota"><?= t('Si tienes alguna alergia o intolerancia, díselo siempre al personal antes de pedir.') ?></p>
-          </details>
-        <?php endif; ?>
-      <?php endif; ?>
-      <?php endif; /* carta_on */ ?>
+  <section class="visita" id="visitanos" aria-labelledby="visita-t">
+    <div class="visita-col">
+      <p class="etiqueta"><?= t('Visítanos') ?></p>
+      <h2 class="visita-t" id="visita-t" data-split><?= t('Aquí estamos') ?></h2>
+      <?php if ($s['address']): ?><p class="visita-dir"><?= h($s['address']) ?><?= $s['city'] ? '<br>' . h($s['city']) : '' ?></p><?php endif; ?>
+      <p class="visita-botones">
+        <?php if ($s['address']): ?><a class="pildora pildora-borde" href="<?= h(maps_href()) ?>" target="_blank" rel="noopener"><?= t('Cómo llegar') ?></a><?php endif; ?>
+        <?php if ($s['phone']): ?><a class="pildora pildora-borde" href="<?= h(tel_href($s['phone'])) ?>"><?= h($s['phone']) ?></a><?php endif; ?>
+        <?php if (wa_href()): ?><a class="pildora pildora-borde" href="<?= h(wa_href()) ?>" target="_blank" rel="noopener">WhatsApp</a><?php endif; ?>
+      </p>
     </div>
-  </section>
-  <?php endif; ?>
-
-  <section class="seccion" id="reservar">
-    <div class="cont dos dos-centro">
-      <div>
-        <p class="etiqueta"><?= t('Reservas') ?></p>
-        <h2 class="titulo"><?= t('Reserva tu mesa en un minuto') ?></h2>
-        <p><?= t('Elige día, hora y cuántos sois. Te enviaremos un WhatsApp para confirmar la reserva. Cancelar es siempre gratis.') ?></p>
-        <a class="boton boton-acento" href="#reservar" data-book><?= t('Reservar mesa') ?></a>
-      </div>
-      <div class="politicas">
-        <?php foreach (politicas() as $p): ?>
-          <details><summary><?= h($p['titulo'] ?: t('Información')) ?></summary><p><?= h($p['texto']) ?></p></details>
-        <?php endforeach; ?>
-        <details><summary><?= t('Si llegas tarde') ?></summary><p><?= t('Guardamos la mesa %d minutos desde la hora reservada.', (int)$s['late_minutes']) ?></p></details>
-      </div>
+    <ul class="horario" aria-label="<?= t('Horario') ?>">
+      <?php foreach (horario() as $d): ?><li<?= $d['hoy'] ? ' class="hoy"' : '' ?>><span><?= $d['dia'] ?></span><span><?= h($d['texto']) ?></span></li><?php endforeach; ?>
+    </ul>
+    <?php if (politicas()): ?>
+    <div class="normas">
+      <h3><?= t('Antes de venir') ?></h3>
+      <dl><?php foreach (politicas() as $p): ?><div><dt><?= h($p['titulo']) ?></dt><dd><?= h($p['texto']) ?></dd></div><?php endforeach; ?></dl>
     </div>
-  </section>
-
-  <section class="seccion seccion-papel app" id="app">
-    <div class="cont">
-      <p class="etiqueta"><?= t('En tu móvil') ?></p>
-      <h2 class="titulo"><?= t('Ten %s a un toque', h($s['name'])) ?></h2>
-      <p><?= t('Instala la web como una app para reservar y ver la carta más rápido.') ?></p>
-      <button class="boton boton-acento" type="button" data-install hidden><?= t('Instalar la app') ?></button>
-      <p data-install-help class="nota"><?= t('En Android o en el ordenador, abre el menú del navegador y elige «Instalar».') ?></p>
-      <p data-install-ios hidden class="nota"><?= t('En iPhone: pulsa Compartir y luego «Añadir a pantalla de inicio».') ?></p>
-      <p data-install-done hidden class="nota"><?= t('Ya la tienes instalada.') ?></p>
-    </div>
+    <?php endif; ?>
   </section>
 </main>
 <?php cerrar();
