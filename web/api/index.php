@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /*
- * API del restaurante. La usan la web pública y la app de gestión.
+ * API del centro. La usan la web pública y la app de gestión.
  * Rutas: api/?r=<ruta>. Las de gestión necesitan la cabecera X-Token (se obtiene con r=login).
  */
 
@@ -36,7 +36,8 @@ try {
         case 'menu':
             out(menu_data(false) + ['carta_on' => carta_on(), 'menus' => menus_public()]);
         case 'slots':
-            out(day_slots((string)($_GET['date'] ?? '')));
+            // Con &service=ID, solo las horas en las que cabe ese tratamiento entero
+            out(day_slots((string)($_GET['date'] ?? ''), false, 0, service_minutes(service_find((int)($_GET['service'] ?? 0)))));
         case 'reserve':
             only_post(); same_origin_only();
             out(create_public_reservation($in), 201);
@@ -174,7 +175,37 @@ try {
             translation_save($in);
             out(true);
         case 'slots_admin':
-            out(day_slots((string)($_GET['date'] ?? ''), true));
+            $min = (int)($_GET['minutes'] ?? 0) ?: service_minutes(service_find((int)($_GET['service'] ?? 0)));
+            out(day_slots((string)($_GET['date'] ?? ''), true, (int)($_GET['exclude'] ?? 0), $min));
+
+        /* Fichas de pacientes (permiso «pacientes») */
+        case 'patients':
+            require_perm($user, 'pacientes');
+            out(patients_list());
+        case 'patient':
+            require_perm($user, 'pacientes');
+            out(patient_get((int)($_GET['id'] ?? 0)));
+        case 'patient_save':
+            only_post();
+            require_perm($user, 'pacientes');
+            out(patient_save($in));
+        case 'patient_delete':
+            only_post();
+            require_perm($user, 'pacientes');
+            patient_delete($id);
+            out(true);
+        case 'note_save':
+            only_post();
+            require_perm($user, 'pacientes');
+            out(note_save($in, $user));
+        case 'note_delete':
+            only_post();
+            require_perm($user, 'pacientes');
+            out(note_delete($id));
+        case 'bono':
+            only_post();
+            require_perm($user, 'pacientes');
+            out(bono_set($id, $in));
         case 'reservation_status':
             only_post();
             require_perm($user, 'reservas');

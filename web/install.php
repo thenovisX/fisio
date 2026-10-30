@@ -29,7 +29,7 @@ if (!$already && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             'db_name'   => $f('db_name'),
             'db_user'   => $f('db_user'),
             'db_pass'   => (string)($_POST['db_pass'] ?? ''),
-            'db_path'   => __DIR__ . '/data/restaurante.sqlite',
+            'db_path'   => __DIR__ . '/data/fisio.sqlite',
             'timezone'  => 'Europe/Madrid',
             'secret'    => bin2hex(random_bytes(32)),
             // Dirección fija de la web: los enlaces de los emails no dependen de la cabecera Host
@@ -61,7 +61,7 @@ if (!$already && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $set = $pdo->prepare('INSERT INTO settings (k, v) VALUES (?, ?)');
         $pdo->exec('DELETE FROM settings');
         $initial = SETTINGS_DEFAULTS;
-        $initial['name'] = $f('name') ?: 'Mi restaurante';
+        $initial['name'] = $f('name') ?: 'Mi centro de fisioterapia';
         $initial['email'] = $f('email');
         $initial['notify_email'] = $f('email');
         foreach ($initial as $k => $v) $set->execute([$k, json_encode($v, JSON_UNESCAPED_UNICODE)]);
@@ -69,12 +69,12 @@ if (!$already && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
         if (!empty($_POST['sample']) && !(int)$pdo->query('SELECT COUNT(*) FROM categories')->fetchColumn()) {
             $ci = $pdo->prepare('INSERT INTO categories (name, position) VALUES (?, ?)');
-            $di = $pdo->prepare('INSERT INTO dishes (category_id, name, description, price, allergens, photo, available, featured, position) VALUES (?,?,?,?,?,?,1,?,?)');
+            $di = $pdo->prepare('INSERT INTO dishes (category_id, name, description, price, allergens, photo, available, featured, position, duration) VALUES (?,?,?,?,?,?,1,?,?,?)');
             $cp = 0;
             foreach (sample_menu() as $cat => $dishes) {
                 $ci->execute([$cat, ++$cp]);
                 $cid = (int)$pdo->lastInsertId();
-                foreach ($dishes as $i => [$n, $d, $p, $a, $feat]) $di->execute([$cid, $n, $d, $p, $a, '', $feat, $i + 1]);
+                foreach ($dishes as $i => [$n, $d, $p, $a, $feat, $min]) $di->execute([$cid, $n, $d, $p, $a, '', $feat, $i + 1, $min]);
             }
         }
         $pdo->commit();
@@ -98,7 +98,7 @@ if (!$already && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Instalar la web del restaurante</title>
+<title>Instalar la web del centro de fisioterapia</title>
 <style>
   body { font: 16px/1.5 system-ui, sans-serif; background: #F2F4F3; color: #14313F; margin: 0; padding: 24px 16px; }
   main { max-width: 560px; margin: 0 auto; background: #fff; padding: 28px; border-radius: 14px; border: 1px solid #D6DBD8; }
@@ -130,7 +130,7 @@ if (!$already && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
   <p><strong>Ahora borra el archivo <code>install.php</code></strong> desde el administrador de archivos de Hostinger.</p>
   <p><a href="./">Ver la web</a> · <a href="panel/">Abrir el panel</a></p>
 <?php else: ?>
-  <h1>Instalar la web del restaurante</h1>
+  <h1>Instalar la web del centro de fisioterapia</h1>
   <p class="hint">Con SQLite no tienes que crear nada: los datos se guardan en un archivo protegido dentro de la web. Si prefieres MySQL, créala antes en hPanel → Bases de datos y copia aquí sus datos.</p>
   <?php if ($error): ?><p class="err"><?= h($error) ?></p><?php endif; ?>
   <form method="post">
@@ -143,15 +143,15 @@ if (!$already && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         </select>
       </label>
       <label>Servidor <input name="db_host" value="<?= h($_POST['db_host'] ?? 'localhost') ?>"></label>
-      <label>Nombre de la base de datos <input name="db_name" placeholder="u123456789_restaurante" value="<?= h($_POST['db_name'] ?? '') ?>"></label>
+      <label>Nombre de la base de datos <input name="db_name" placeholder="u123456789_fisio" value="<?= h($_POST['db_name'] ?? '') ?>"></label>
       <label>Usuario <input name="db_user" placeholder="u123456789_admin" value="<?= h($_POST['db_user'] ?? '') ?>"></label>
       <label>Contraseña <input name="db_pass" type="password"></label>
     </fieldset>
     <fieldset>
-      <legend>Restaurante</legend>
-      <label>Nombre <input name="name" required placeholder="Casa Marisa" value="<?= h($_POST['name'] ?? '') ?>"></label>
-      <label>Email donde avisar de las reservas <input name="email" type="email" value="<?= h($_POST['email'] ?? '') ?>"></label>
-      <label><input type="checkbox" name="sample" value="1" checked>Cargar una carta de ejemplo (se edita luego desde la app)</label>
+      <legend>Centro</legend>
+      <label>Nombre <input name="name" required placeholder="Fisio Arena" value="<?= h($_POST['name'] ?? '') ?>"></label>
+      <label>Email donde avisar de las citas <input name="email" type="email" value="<?= h($_POST['email'] ?? '') ?>"></label>
+      <label><input type="checkbox" name="sample" value="1" checked>Cargar tratamientos de ejemplo (se editan luego desde la app)</label>
     </fieldset>
     <fieldset>
       <legend>Acceso a la app</legend>

@@ -34,6 +34,7 @@ function dish_out(array $d): array
         'allergens' => $d['allergens'] === '' ? [] : explode(',', $d['allergens']),
         'photo' => $d['photo'] === '' ? '' : (preg_match('#^https?://#', $d['photo']) ? $d['photo'] : base_url() . '/' . $d['photo']),
         'available' => (bool)$d['available'], 'featured' => (bool)$d['featured'], 'position' => (int)$d['position'],
+        'duration' => (int)($d['duration'] ?? 0) ?: (int)settings()['table_minutes'],   // minutos que dura el tratamiento
     ];
 }
 
@@ -70,14 +71,14 @@ function save_category(array $in): array
 function delete_category(int $id): void
 {
     $n = (int)q('SELECT COUNT(*) FROM dishes WHERE category_id = ?', [$id])->fetchColumn();
-    if ($n) throw new ValidationError("Esta sección tiene $n platos. Muévelos o bórralos antes.");
+    if ($n) throw new ValidationError("Esta sección tiene $n tratamientos. Muévelos o bórralos antes.");
     q('DELETE FROM categories WHERE id = ?', [$id]);
 }
 
 function get_dish(int $id): array
 {
     $d = q('SELECT * FROM dishes WHERE id = ?', [$id])->fetch();
-    if (!$d) throw new ValidationError('El plato no existe');
+    if (!$d) throw new ValidationError('El tratamiento no existe');
     return $d;
 }
 
@@ -86,7 +87,7 @@ function save_dish(array $in, ?array $file): array
     $id = (int)($in['id'] ?? 0);
     $cat = (int)($in['category_id'] ?? 0);
     if (!q('SELECT id FROM categories WHERE id = ?', [$cat])->fetch()) throw new ValidationError('Elige una sección');
-    $name = str_in($in, 'name', 120, true, 'nombre del plato');
+    $name = str_in($in, 'name', 120, true, 'nombre del tratamiento');
     $desc = mb_substr(trim((string)($in['description'] ?? '')), 0, 400);
     $price = round((float)str_replace(',', '.', (string)($in['price'] ?? '0')), 2);
     if ($price < 0 || $price > 9999) throw new ValidationError('Precio no válido');
@@ -95,15 +96,17 @@ function save_dish(array $in, ?array $file): array
     $al = implode(',', array_values(array_intersect(array_keys(ALLERGENS), (array)$al)));
     $available = filter_var($in['available'] ?? true, FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
     $featured = filter_var($in['featured'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+    $dur = (int)($in['duration'] ?? 0) ?: (int)settings()['table_minutes'];
+    if ($dur < 5 || $dur > 480) throw new ValidationError('La duración va de 5 a 480 minutos');
 
     if ($id) {
         $old = get_dish($id);
-        q('UPDATE dishes SET category_id=?, name=?, description=?, price=?, allergens=?, available=?, featured=? WHERE id=?',
-            [$cat, $name, $desc, $price, $al, $available, $featured, $id]);
+        q('UPDATE dishes SET category_id=?, name=?, description=?, price=?, allergens=?, available=?, featured=?, duration=? WHERE id=?',
+            [$cat, $name, $desc, $price, $al, $available, $featured, $dur, $id]);
     } else {
         $pos = (int)q('SELECT COALESCE(MAX(position), 0) + 1 FROM dishes WHERE category_id = ?', [$cat])->fetchColumn();
-        q('INSERT INTO dishes (category_id, name, description, price, allergens, photo, available, featured, position) VALUES (?,?,?,?,?,?,?,?,?)',
-            [$cat, $name, $desc, $price, $al, '', $available, $featured, $pos]);
+        q('INSERT INTO dishes (category_id, name, description, price, allergens, photo, available, featured, position, duration) VALUES (?,?,?,?,?,?,?,?,?,?)',
+            [$cat, $name, $desc, $price, $al, '', $available, $featured, $pos, $dur]);
         $id = (int)db()->lastInsertId();
         $old = get_dish($id);
     }

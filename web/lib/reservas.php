@@ -19,63 +19,78 @@ function fmt_date_es(string $date): string
     return $dias[(int)date('N', $ts)] . ' ' . (int)date('j', $ts) . ' de ' . $meses[(int)date('n', $ts)];
 }
 
+/** Tratamiento elegido (activo) o null. */
+function service_find(int $id): ?array
+{
+    if ($id <= 0) return null;
+    $d = q('SELECT * FROM dishes WHERE id = ?', [$id])->fetch();
+    return $d ? dish_out($d) : null;
+}
+
+/** Minutos que dura una cita: los del tratamiento o, si no tiene, la duración general de Ajustes. */
+function service_minutes(?array $service): int
+{
+    return max(5, (int)($service['duration'] ?? 0) ?: (int)settings()['table_minutes'] ?: 45);
+}
+
 /**
- * Horas disponibles de un día con las plazas libres en cada una.
- * $ignoreRules = true lo usa el panel: deja apuntar reservas aunque esté lleno o fuera de plazo.
+ * Horas disponibles de un día con los huecos libres en cada una.
+ * Cada cita ocupa un fisioterapeuta (o cabina) desde su hora hasta que termina su tratamiento; en Ajustes,
+ * «capacity» es cuántas citas caben a la vez. $minutes es lo que dura la cita que se quiere poner: solo se
+ * ofrecen horas en las que cabe entera, sin pasarse del cierre.
+ * $ignoreRules = true lo usa el panel: deja apuntar citas aunque esté lleno o fuera de plazo.
  */
-function day_slots(string $date, bool $ignoreRules = false, int $excludeId = 0): array
+function day_slots(string $date, bool $ignoreRules = false, int $excludeId = 0, int $minutes = 0): array
 {
     if (!is_date($date)) throw new ValidationError('Fecha no válida');
     $s = settings();
     $res = ['date' => $date, 'open' => false, 'reason' => '', 'slots' => []];
+    $dur = ($minutes > 0 ? $minutes : max(5, (int)$s['table_minutes'] ?: 45)) * 60;
+    $res['minutes'] = intdiv($dur, 60);
 
     if (!$ignoreRules) {
         if ($date < today()) return ['reason' => t('Esa fecha ya ha pasado')] + $res;
         $limit = date('Y-m-d', strtotime('+' . (int)$s['days_ahead'] . ' days'));
         if ($date > $limit) return ['reason' => t('Solo se puede reservar con %d días de antelación como máximo', (int)$s['days_ahead'])] + $res;
     }
-    if (in_array($date, $s['closed_dates'], true)) return ['reason' => t('Ese día el restaurante está cerrado')] + $res;
+    if (in_array($date, $s['closed_dates'], true)) return ['reason' => t('Ese día el centro está cerrado')] + $res;
 
     $ranges = $s['hours'][date('N', strtotime($date))] ?? [];
-    if (!$ranges) return ['reason' => t('Ese día el restaurante cierra')] + $res;
-    // Con horario de cocina, solo se puede reservar mientras la cocina está abierta
-    if ($s['kitchen_on']) {
-        $ranges = $s['kitchen_hours'][date('N', strtotime($date))] ?? [];
-        if (!$ranges) return ['reason' => t('Ese día la cocina no abre')] + $res;
-    }
+    if (!$ranges) return ['reason' => t('Ese día el centro no abre')] + $res;
 
-    // Reservas del día que ocupan sitio: [inicio en segundos, personas]
+    // Citas del día que ocupan sitio: [inicio, fin] en segundos
     $ph = implode(',', array_fill(0, count(RES_ACTIVE), '?'));
-    $rows = q("SELECT rtime, SUM(people) AS p FROM reservations WHERE rdate = ? AND id <> ? AND status IN ($ph) GROUP BY rtime", array_merge([$date, $excludeId], RES_ACTIVE))->fetchAll();
-    $booked = array_map(fn($r) => [strtotime("$date {$r['rtime']}"), (int)$r['p']], $rows);
-    // Tiempo de mesa: una reserva ocupa su sitio desde su hora hasta que pasa este tiempo (0 = solo su hora)
-    $dur = max(0, (int)$s['table_minutes']) * 60;
-    $occupied = function (int $x) use ($booked, $dur): int {
+    $rows = q("SELECT rtime, people, duration FROM reservations WHERE rdate = ? AND id <> ? AND deleted = 0 AND status IN ($ph)", array_merge([$date, $excludeId], RES_ACTIVE))->fetchAll();
+    $def = max(5, (int)$s['table_minutes'] ?: 45) * 60;
+    $booked = array_map(function ($r) use ($date, $def) {
+        $a = strtotime("$date {$r['rtime']}");
+        return [$a, $a + ((int)$r['duration'] > 0 ? (int)$r['duration'] * 60 : $def), max(1, (int)$r['people'])];
+    }, $rows);
+    $occupied = function (int $x) use ($booked): int {
         $n = 0;
-        foreach ($booked as [$start, $p]) if ($dur > 0 ? ($start <= $x && $x < $start + $dur) : $start === $x) $n += $p;
+        foreach ($booked as [$a, $b, $p]) if ($a <= $x && $x < $b) $n += $p;
         return $n;
     };
-    // Plazas libres a la hora $t: lo que cabe sin pasar del aforo en ningún momento de la comida
+    // Huecos libres a la hora $t: lo que queda sin pasar de la capacidad en ningún momento de la sesión
     $free = function (int $t) use ($booked, $dur, $occupied, $s): int {
         $peak = $occupied($t);
-        if ($dur > 0) foreach ($booked as [$start]) if ($start > $t && $start < $t + $dur) $peak = max($peak, $occupied($start));
-        return max(0, (int)$s['capacity'] - $peak);
+        foreach ($booked as [$a]) if ($a > $t && $a < $t + $dur) $peak = max($peak, $occupied($a));
+        return max(0, max(1, (int)$s['capacity']) - $peak);
     };
 
     $step = max(5, (int)$s['slot_minutes']) * 60;
     $earliest = time() + (int)$s['min_notice'] * 60;
     foreach ($ranges as [$a, $b]) {
         $t = strtotime("$date $a");
-        $end = strtotime("$date $b") - (int)$s['last_before'] * 60;
-        if ($end < $t) $end = $t;
+        // La sesión tiene que terminar antes del cierre de la franja
+        $end = strtotime("$date $b") - max($dur, (int)$s['last_before'] * 60);
         for (; $t <= $end; $t += $step) {
             if (!$ignoreRules && $t < $earliest) continue;
-            $hm = date('H:i', $t);
-            $res['slots'][] = ['time' => $hm, 'left' => $free($t)];
+            $res['slots'][] = ['time' => date('H:i', $t), 'left' => $free($t)];
         }
     }
     $res['open'] = (bool)array_filter($res['slots'], fn($x) => $x['left'] > 0);
-    if (!$res['open']) $res['reason'] = $res['slots'] ? t('No quedan mesas libres ese día') : t('Ya no se puede reservar para hoy');
+    if (!$res['open']) $res['reason'] = $res['slots'] ? t('Ese día ya no quedan huecos libres') : t('Ya no se puede reservar para hoy');
     return $res;
 }
 
@@ -87,9 +102,18 @@ function reservation_fields(array $in, bool $fromPanel): array
         'email'  => str_in($in, 'email', 120),
         'rdate'  => str_in($in, 'date', 10, true, 'fecha'),
         'rtime'  => str_in($in, 'time', 5, true, 'hora'),
-        'people' => (int)($in['people'] ?? 0),
+        'people' => (int)($in['people'] ?? 1) ?: 1,
         'notes'  => mb_substr(trim((string)($in['notes'] ?? '')), 0, 500),
     ];
+    // Tratamiento: el de la web es obligatorio si el centro tiene alguno; el panel puede dejarlo vacío
+    $svc = service_find((int)($in['service_id'] ?? 0));
+    if (!$svc && !$fromPanel && (int)q('SELECT COUNT(*) FROM dishes WHERE available = 1')->fetchColumn() > 0) {
+        throw new ValidationError('Elige un tratamiento');
+    }
+    if ($svc && !$svc['available'] && !$fromPanel) throw new ValidationError('Elige un tratamiento');
+    $d['service_id'] = $svc ? $svc['id'] : 0;
+    $d['service'] = $svc ? $svc['name'] : mb_substr(trim((string)($in['service'] ?? '')), 0, 160);
+    $d['duration'] = $fromPanel && (int)($in['duration'] ?? 0) > 0 ? min(480, max(5, (int)$in['duration'])) : service_minutes($svc);
     if (mb_strlen($d['name']) < 2) throw new ValidationError('Escribe un nombre');
     if (strlen(preg_replace('/\D/', '', $d['phone'])) < 6) throw new ValidationError('El teléfono no parece correcto');
     if ($d['email'] !== '' && !filter_var($d['email'], FILTER_VALIDATE_EMAIL)) throw new ValidationError('El email no parece correcto');
@@ -97,7 +121,7 @@ function reservation_fields(array $in, bool $fromPanel): array
     if (!is_time($d['rtime'])) throw new ValidationError('Hora no válida');
     $max = $fromPanel ? 200 : (int)settings()['max_people'];
     if ($d['people'] < 1 || $d['people'] > $max) {
-        throw new ValidationError($fromPanel ? 'Número de personas no válido' : "Para grupos de más de $max personas, llámanos por teléfono");
+        throw new ValidationError($fromPanel ? 'Número de personas no válido' : 'Para citas de grupo, llámanos por teléfono');
     }
     return $d;
 }
@@ -116,11 +140,11 @@ function create_public_reservation(array $in): array
     $ip = client_ip();
     reservation_spam_guard($ip, $d, $customer);
 
-    // Dos peticiones a la vez para la última mesa: la segunda espera a que termine la primera y ya ve
+    // Dos peticiones a la vez para el último hueco: la segunda espera a que termine la primera y ya ve
     // ocupadas sus plazas (sin el bloqueo, las dos verían sitio y se pasaría del aforo).
     $pdo = db();
     reservation_lock();
-    $slots = day_slots($d['rdate']);
+    $slots = day_slots($d['rdate'], false, 0, $d['duration']);
     $slot = null;
     foreach ($slots['slots'] as $x) if ($x['time'] === $d['rtime']) $slot = $x;
     if (!$slot) {
@@ -129,7 +153,7 @@ function create_public_reservation(array $in): array
     }
     if ($slot['left'] < $d['people']) {
         $pdo->rollBack();
-        throw new ValidationError($slot['left'] > 0 ? t('A esa hora solo quedan %d plazas', $slot['left']) : t('Esa hora ya está completa, prueba otra'));
+        throw new ValidationError(t('Esa hora ya está completa, prueba otra'));
     }
 
     $s = settings();
@@ -140,33 +164,35 @@ function create_public_reservation(array $in): array
     if (!$cid && $d['email'] !== '') {
         $cid = (int)(q('SELECT id FROM customers WHERE email_idx = ? AND verified_at IS NOT NULL', [email_idx($d['email'])])->fetchColumn() ?: 0);
     }
-    q('INSERT INTO reservations (name, phone, email, email_idx, rdate, rtime, people, notes, status, source, ip, created_at, updated_at, customer_id, verify_token, seq, lang)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
+    q('INSERT INTO reservations (name, phone, email, email_idx, rdate, rtime, people, notes, status, source, ip, created_at, updated_at, customer_id, verify_token, seq, lang, service_id, service, duration, patient_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
         enc($d['name']), enc($d['phone']), enc($d['email']), email_idx($d['email']), $d['rdate'], $d['rtime'], $d['people'], enc($d['notes']),
-        $status, 'web', $ip, now(), now(), $cid, enc($token), next_seq(), lang(),
+        $status, 'web', $ip, now(), now(), $cid, enc($token), next_seq(), lang(), $d['service_id'], $d['service'], $d['duration'], patient_match($d['phone'], $d['email']),
     ]);
     $id = (int)$pdo->lastInsertId();
     $pdo->commit();
     audit('reserva', $cid, "Reserva #$id: acepta políticas de reserva y privacidad, versión " . LEGAL_VERSION);
 
     $when = fmt_date_es($d['rdate']) . ' a las ' . $d['rtime'];
+    $svc = $d['service'] !== '' ? $d['service'] : 'Cita';
     restaurant_mail(
-        "Petición de reserva: {$d['name']}, {$d['people']} pers., $when",
-        "Nueva petición de reserva desde la web\n\nNombre: {$d['name']}\nDía: $when\nPersonas: {$d['people']}\n\n"
-        . "Confírmala desde la pestaña Peticiones de la app: allí están el teléfono y las notas, y se abrirá WhatsApp con el mensaje para el cliente.\n"
-        . "(Por privacidad, el teléfono y el email del cliente no van en este aviso.)"
+        "Petición de cita: {$d['name']}, $svc, $when",
+        "Nueva petición de cita desde la web\n\nNombre: {$d['name']}\nTratamiento: $svc ({$d['duration']} min)\nDía: $when\n\n"
+        . "Acéptala desde la Bandeja de la app: allí están el teléfono y las notas, y se abrirá WhatsApp con el mensaje para el paciente.\n"
+        . "(Por privacidad, el teléfono y el email del paciente no van en este aviso.)"
     );
 
     return [
         'id' => $id,
         'status' => $status,
         'people' => $d['people'],
+        'service' => $d['service'],
         'account' => (bool)$customer,
         'linked' => $cid > 0,
         'email' => $d['email'] !== '',
         'when' => fmt_date_l($d['rdate']) . ' · ' . $d['rtime'],
-        'message' => t('Hemos recibido tu petición para el %s a las %s (%s).', fmt_date_l($d['rdate']), $d['rtime'], $d['people'] . ' ' . ($d['people'] === 1 ? t('persona') : t('personas')))
-            . ' ' . t('El restaurante la revisará y te enviará un WhatsApp al %s con un enlace para confirmarla.', $d['phone']),
+        'message' => t('Hemos recibido tu petición para el %s a las %s (%s).', fmt_date_l($d['rdate']), $d['rtime'], $d['service'] !== '' ? tr($d['service']) : t('cita'))
+            . ' ' . t('El centro la revisará y te enviará un WhatsApp al %s con un enlace para confirmarla.', $d['phone']),
     ];
 }
 
@@ -185,7 +211,7 @@ function reservation_lock(): void
 }
 
 /**
- * Límites contra reservas falsas que bloquean mesas (las peticiones pendientes ocupan sitio):
+ * Límites contra citas falsas que bloquean huecos (las peticiones pendientes ocupan sitio):
  * 5 por hora y 10 al día desde la misma IP, y como mucho 3 reservas activas a la vez por email o cuenta.
  */
 const RES_MAX_ACTIVE = 3;
@@ -230,9 +256,9 @@ function whatsapp_text(array $r, string $url): string
     return with_lang($r['lang'] ?? 'es', function () use ($r, $url) {
         $s = settings();
         $first = explode(' ', trim($r['name']))[0];
-        $people = $r['people'] . ' ' . ($r['people'] === 1 ? t('persona') : t('personas'));
+        $what = $r['service'] !== '' ? tr($r['service']) : t('cita');
         $lq = lang() !== 'es' ? '?lang=' . lang() : '';
-        return t('Hola %s, confirma tu reserva en %s para el %s a las %s (%s). Abre este enlace y pulsa «Confirmar mi reserva»:', $first, $s['name'], fmt_date_l($r['date']), $r['time'], $people)
+        return t('Hola %s, confirma tu cita en %s para el %s a las %s (%s). Abre este enlace y pulsa «Confirmar mi cita»:', $first, $s['name'], fmt_date_l($r['date']), $r['time'], $what)
             . "\n$url" . ($lq ? '&lang=' . lang() : '') . "\n\n"
             . t('Si te has equivocado en algún dato, vuelve a hacer la reserva en la web:') . ' ' . base_url() . '/reservar.php' . $lq;
     });
@@ -287,8 +313,8 @@ function confirm_by_customer(int $id, string $token): array
     audit('reserva_confirmada_cliente', (int)$row['customer_id'], "Reserva #$id confirmada desde el enlace");
     $r = get_reservation($id);
     $s = settings();
-    restaurant_mail("Reserva confirmada por el cliente: {$r['name']}, " . fmt_date_es($r['date']) . " {$r['time']}",
-        "{$r['name']} ha confirmado su reserva desde el enlace del WhatsApp.\n\nDía: " . fmt_date_es($r['date']) . " a las {$r['time']}\nPersonas: {$r['people']}");
+    restaurant_mail("Cita confirmada por el paciente: {$r['name']}, " . fmt_date_es($r['date']) . " {$r['time']}",
+        "{$r['name']} ha confirmado su cita desde el enlace del WhatsApp.\n\nDía: " . fmt_date_es($r['date']) . " a las {$r['time']}\nTratamiento: " . ($r['service'] ?: 'sin indicar'));
     notify_customer($r);
     return ['confirmada', $r];
 }
@@ -309,6 +335,10 @@ function res_out(array $r): array
         'customer' => (int)($r['customer_id'] ?? 0) > 0,
         'cancel_by' => (string)($r['cancel_by'] ?? ''),   // cliente o restaurante
         'lang' => (string)($r['lang'] ?? 'es'),           // idioma en el que reservó
+        'service_id' => (int)($r['service_id'] ?? 0),
+        'service' => (string)($r['service'] ?? ''),       // tratamiento (nombre en el momento de reservar)
+        'duration' => (int)($r['duration'] ?? 0) ?: (int)settings()['table_minutes'],
+        'patient_id' => (int)($r['patient_id'] ?? 0),     // ficha del paciente, si está enlazada
     ];
 }
 
@@ -398,18 +428,23 @@ function save_reservation(array $in): array
     $d = reservation_fields($in, true);
     day_slots($d['rdate'], true); // valida formato
     $id = (int)($in['id'] ?? 0);
+    // Ficha del paciente: la que manda el panel o la que coincide por teléfono o email
+    $pid = (int)($in['patient_id'] ?? 0);
+    if ($pid && !q('SELECT id FROM patients WHERE id = ?', [$pid])->fetch()) $pid = 0;
+    if (!$pid) $pid = patient_match($d['phone'], $d['email']);
     if ($id) {
         get_reservation($id);
         // Los recordatorios vuelven a empezar por si ha cambiado el día o la hora
-        q('UPDATE reservations SET name=?, phone=?, email=?, email_idx=?, rdate=?, rtime=?, people=?, notes=?, updated_at=?, reminders=0 WHERE id=?', [
-            enc($d['name']), enc($d['phone']), enc($d['email']), email_idx($d['email']), $d['rdate'], $d['rtime'], $d['people'], enc($d['notes']), now(), $id,
+        q('UPDATE reservations SET name=?, phone=?, email=?, email_idx=?, rdate=?, rtime=?, people=?, notes=?, updated_at=?, reminders=0, service_id=?, service=?, duration=?, patient_id=? WHERE id=?', [
+            enc($d['name']), enc($d['phone']), enc($d['email']), email_idx($d['email']), $d['rdate'], $d['rtime'], $d['people'], enc($d['notes']), now(),
+            $d['service_id'], $d['service'], $d['duration'], $pid, $id,
         ]);
         return get_reservation_admin($id);
     }
-    q('INSERT INTO reservations (name, phone, email, email_idx, rdate, rtime, people, notes, status, source, ip, created_at, updated_at, seq)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
+    q('INSERT INTO reservations (name, phone, email, email_idx, rdate, rtime, people, notes, status, source, ip, created_at, updated_at, seq, service_id, service, duration, patient_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
         enc($d['name']), enc($d['phone']), enc($d['email']), email_idx($d['email']), $d['rdate'], $d['rtime'], $d['people'], enc($d['notes']),
-        'confirmada', 'panel', '', now(), now(), next_seq(),
+        'confirmada', 'panel', '', now(), now(), next_seq(), $d['service_id'], $d['service'], $d['duration'], $pid,
     ]);
     return get_reservation_admin((int)db()->lastInsertId());
 }
@@ -433,8 +468,8 @@ function cancel_by_link(int $id, string $token): array
     audit('reserva_cancelada_cliente', (int)$row['customer_id'], "Reserva #$id cancelada desde el enlace");
     $r = get_reservation($id);
     $s = settings();
-    restaurant_mail("Reserva cancelada por el cliente: {$r['name']}, " . fmt_date_es($r['date']) . " {$r['time']}",
-        "{$r['name']} ha cancelado su reserva desde el enlace.\n\nDía: " . fmt_date_es($r['date']) . " a las {$r['time']}\nPersonas: {$r['people']}");
+    restaurant_mail("Cita cancelada por el paciente: {$r['name']}, " . fmt_date_es($r['date']) . " {$r['time']}",
+        "{$r['name']} ha cancelado su cita desde el enlace.\n\nDía: " . fmt_date_es($r['date']) . " a las {$r['time']}\nTratamiento: " . ($r['service'] ?: 'sin indicar'));
     notify_customer($r);
     return ['cancelada', $r];
 }
@@ -449,10 +484,10 @@ function notify_customer(array $r): void
         $tel = $s['phone'] ? "\n" . t('Si necesitas cambiar algo, llámanos al %s.', $s['phone']) : '';
         $hi = t('Hola %s:', $r['name']) . "\n\n";
         $msgs = [
-            'esperando'  => [t('Confirma tu reserva en %s', $s['name']), $hi . t('Tenemos mesa para %d personas el %s. Para confirmarla, abre este enlace y pulsa «Confirmar mi reserva»:', $r['people'], $when) . "\n\n" . confirm_url(q('SELECT * FROM reservations WHERE id = ?', [$r['id']])->fetch()) . (lang() !== 'es' ? '&lang=' . lang() : '') . "\n\n" . t('También te lo hemos enviado por WhatsApp. Si te has equivocado en algún dato, vuelve a hacer la reserva en la web.') . "\n\n{$s['name']}"],
-            'confirmada' => [t('Reserva confirmada en %s', $s['name']), $hi . t('Tu reserva para %d personas el %s está confirmada. ¡Te esperamos!', $r['people'], $when) . "$tel\n\n{$s['name']}\n{$s['address']}"],
-            'rechazada'  => [t('No podemos atender tu reserva en %s', $s['name']), $hi . t('Lo sentimos, no tenemos mesa para %d personas el %s.', $r['people'], $when) . "$tel\n\n{$s['name']}"],
-            'cancelada'  => [t('Reserva cancelada en %s', $s['name']), $hi . t('Tu reserva del %s ha quedado cancelada.', $when) . "$tel\n\n{$s['name']}"],
+            'esperando'  => [t('Confirma tu cita en %s', $s['name']), $hi . t('Tenemos hueco para ti el %s. Para confirmar la cita, abre este enlace y pulsa «Confirmar mi cita»:', $when) . "\n\n" . confirm_url(q('SELECT * FROM reservations WHERE id = ?', [$r['id']])->fetch()) . (lang() !== 'es' ? '&lang=' . lang() : '') . "\n\n" . t('También te lo hemos enviado por WhatsApp. Si te has equivocado en algún dato, vuelve a pedir la cita en la web.') . "\n\n{$s['name']}"],
+            'confirmada' => [t('Cita confirmada en %s', $s['name']), $hi . t('Tu cita del %s está confirmada. Ven con ropa cómoda. ¡Te esperamos!', $when) . "$tel\n\n{$s['name']}\n{$s['address']}"],
+            'rechazada'  => [t('No podemos atenderte a esa hora en %s', $s['name']), $hi . t('Lo sentimos, no tenemos hueco libre el %s.', $when) . "$tel\n\n{$s['name']}"],
+            'cancelada'  => [t('Cita cancelada en %s', $s['name']), $hi . t('Tu cita del %s ha quedado cancelada.', $when) . "$tel\n\n{$s['name']}"],
         ];
         if (isset($msgs[$r['status']])) send_mail($r['email'], ...$msgs[$r['status']]);
     });
@@ -470,7 +505,7 @@ function reject_info(int $id): array
     $r = res_out($row);
     $slots = [];
     try {
-        $day = day_slots($r['date'], false, $id);
+        $day = day_slots($r['date'], false, $id, $r['duration']);
         $want = strtotime($r['date'] . ' ' . $r['time']);
         foreach ($day['slots'] as $sl) {
             $t = strtotime($r['date'] . ' ' . $sl['time']);
@@ -480,12 +515,11 @@ function reject_info(int $id): array
     $texts = with_lang($r['lang'] ?: 'es', function () use ($r) {
         $s = settings();
         $first = explode(' ', trim($r['name']))[0];
-        $people = $r['people'] . ' ' . ($r['people'] === 1 ? t('persona') : t('personas'));
         $lq = lang() !== 'es' ? '?lang=' . lang() : '';
-        $sorry = t('Hola %s, somos %s. Lo sentimos: no tenemos mesa para %s el %s a las %s.', $first, $s['name'], $people, fmt_date_l($r['date']), $r['time']);
+        $sorry = t('Hola %s, somos %s. Lo sentimos: no tenemos hueco el %s a las %s.', $first, $s['name'], fmt_date_l($r['date']), $r['time']);
         return [
-            'text_slots' => $sorry . ' ' . t('Ese día sí tenemos sitio a estas horas: %s. Si te va bien alguna, haz la reserva en la web:', '{horas}') . ' ' . base_url() . '/reservar.php' . $lq,
-            'text_none'  => $sorry . ' ' . t('Ese día ya no nos queda sitio. Esperamos verte otro día; puedes reservar en la web:') . ' ' . base_url() . '/reservar.php' . $lq,
+            'text_slots' => $sorry . ' ' . t('Ese día sí tenemos hueco a estas horas: %s. Si te va bien alguna, pide la cita en la web:', '{horas}') . ' ' . base_url() . '/reservar.php' . $lq,
+            'text_none'  => $sorry . ' ' . t('Ese día ya no nos queda hueco. Puedes pedir cita para otro día en la web:') . ' ' . base_url() . '/reservar.php' . $lq,
         ];
     });
     return ['slots' => $slots, 'wa_number' => $r['phone'] !== '' ? wa_number($r['phone']) : ''] + $texts;

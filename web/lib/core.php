@@ -60,7 +60,7 @@ function purge_old_reservations(bool $force = false): int
 }
 
 /** Actualiza la base de datos de instalaciones anteriores sin perder datos. */
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 /** Versión de las condiciones y la privacidad: se guarda con cada aceptación. Súbela si cambias los textos. */
 const LEGAL_VERSION = '2026-10-22';
 function ensure_schema(): void
@@ -157,6 +157,19 @@ function ensure_schema(): void
             try { db()->exec($sql); } catch (Throwable $e) { /* ya existe */ }
         }
     }
+    if ($v < 11) {
+        // v11: fisioterapia. Duración de cada tratamiento, tratamiento elegido en cada cita y fichas de pacientes
+        // (las tablas patients y session_notes las crea schema_sql)
+        foreach ([
+            'ALTER TABLE dishes ADD COLUMN duration INT NOT NULL DEFAULT 45',
+            'ALTER TABLE reservations ADD COLUMN service_id INT NOT NULL DEFAULT 0',
+            "ALTER TABLE reservations ADD COLUMN service VARCHAR(160) NOT NULL DEFAULT ''",
+            'ALTER TABLE reservations ADD COLUMN duration INT NOT NULL DEFAULT 0',
+            'ALTER TABLE reservations ADD COLUMN patient_id INT NOT NULL DEFAULT 0',
+        ] as $sql) {
+            try { db()->exec($sql); } catch (Throwable $e) { /* ya existe */ }
+        }
+    }
     q("DELETE FROM settings WHERE k = '_schema'");
     q("INSERT INTO settings (k, v) VALUES ('_schema', ?)", [(string)SCHEMA_VERSION]);
 }
@@ -220,8 +233,8 @@ function today(): string
 /* ---------- Ajustes del restaurante ---------- */
 
 const SETTINGS_DEFAULTS = [
-    'name'          => 'Mi restaurante',
-    'tagline'       => 'Cocina de mercado y buen ambiente',
+    'name'          => 'Mi centro de fisioterapia',
+    'tagline'       => 'Fisioterapia que te devuelve el movimiento',
     'description'   => '',
     'address'       => '',
     'city'          => '',
@@ -233,12 +246,12 @@ const SETTINGS_DEFAULTS = [
     'tiktok'        => '',
     'tripadvisor'   => '',
     'maps_url'      => '',     // enlace de Google Maps (si no, se busca la dirección)
-    'ribbon'        => '',     // frases de la cinta, separadas por comas (si no, sale la frase corta)
-    'footer_title'  => '¿Cenamos?',
+    'ribbon'        => 'Terapia manual, Ejercicio terapéutico, Fisioterapia deportiva, Suelo pélvico, Punción seca',     // frases de la cinta, separadas por comas (si no, sale la frase corta)
+    'footer_title'  => '¿Empezamos?',
     'photos'        => [],     // fotos propias de la web: clave => uploads/…
     'daily_menu'    => [],     // antiguo menú del día (ahora va en menus)
     'menus'         => [],     // menús con precio cerrado (ver menus_all() en carta.php); se guardan con su propia ruta
-    'menus_button'  => true,   // ¿botón «Ver menús» en la portada?
+    'menus_button'  => false,  // ¿botón «Ver menús» en la portada? (bonos y packs)
     'carta_on'      => true,   // ¿sale la carta principal en la web? (se cambia desde la pestaña Carta)
     // SEO y estadísticas (solo se cargan si el visitante acepta las cookies)
     'seo_description' => '',   // texto que sale en Google bajo el nombre
@@ -270,30 +283,30 @@ const SETTINGS_DEFAULTS = [
     'wa_remind_template' => '', // plantilla aprobada del recordatorio (vacío = texto libre)
     // Horario: día ISO (1 = lunes … 7 = domingo) => lista de franjas [inicio, fin]
     'hours'         => [
-        '1' => [],
-        '2' => [['13:00', '16:00'], ['20:30', '23:30']],
-        '3' => [['13:00', '16:00'], ['20:30', '23:30']],
-        '4' => [['13:00', '16:00'], ['20:30', '23:30']],
-        '5' => [['13:00', '16:00'], ['20:30', '23:59']],
-        '6' => [['13:00', '16:30'], ['20:30', '23:59']],
-        '7' => [['13:00', '16:30']],
+        '1' => [['09:00', '14:00'], ['16:00', '21:00']],
+        '2' => [['09:00', '14:00'], ['16:00', '21:00']],
+        '3' => [['09:00', '14:00'], ['16:00', '21:00']],
+        '4' => [['09:00', '14:00'], ['16:00', '21:00']],
+        '5' => [['09:00', '15:00']],
+        '6' => [['10:00', '14:00']],
+        '7' => [],
     ],
-    // Horario de cocina (opcional): si está activado, las reservas se ofrecen dentro de este horario
+    // Horario de cocina: no se usa en fisioterapia (se deja apagado)
     'kitchen_on'    => false,
     'kitchen_hours' => ['1' => [], '2' => [], '3' => [], '4' => [], '5' => [], '6' => [], '7' => []],
     'closed_dates'  => [],     // ['2026-12-25', …]
-    'slot_minutes'  => 30,     // cada cuánto se puede reservar
-    'capacity'      => 20,     // comensales máximos sentados a la vez
-    'table_minutes' => 90,     // lo que dura una comida: una reserva ocupa sitio desde su hora hasta pasado este tiempo
-    'max_people'    => 10,     // máximo por reserva online
-    'min_notice'    => 60,     // minutos de antelación mínima
-    'last_before'   => 60,     // última reserva X minutos antes del cierre
+    'slot_minutes'  => 15,     // cada cuánto empieza una cita
+    'capacity'      => 2,      // fisioterapeutas o cabinas: citas a la vez
+    'table_minutes' => 45,     // duración de una cita si el tratamiento no dice otra
+    'max_people'    => 1,      // personas por cita (una)
+    'min_notice'    => 120,    // minutos de antelación mínima
+    'last_before'   => 0,      // la última cita termina como muy tarde a la hora de cierre
     'days_ahead'    => 60,     // hasta cuántos días se puede reservar
     'auto_confirm'  => false,  // ya no se usa: las reservas se confirman siempre por WhatsApp
     // Políticas de reserva (se muestran en la web y hay que aceptarlas al reservar)
     'cancel_hours'  => 0,      // ya no se usa: cancelar es gratis siempre
-    'late_minutes'  => 15,     // minutos que se guarda la mesa si llegan tarde
-    'policies'      => "Grupos: para más de 10 personas, escríbenos o llámanos y te preparamos un menú cerrado.\nAlergias: dínoslo al reservar; la cocina adapta los platos siempre que sea posible.\nNiños: son bienvenidos. Tenemos tronas, pídela en las notas de la reserva.\nMascotas: perros pequeños en la terraza.",
+    'late_minutes'  => 10,     // minutos de cortesía si el paciente llega tarde
+    'policies'      => "Cancelaciones: avísanos con 24 horas para dar tu hueco a otra persona. Cancelar desde el enlace es gratis.\nPrimera visita: trae informes, pruebas de imagen y ropa cómoda.\nPuntualidad: la sesión termina a su hora; si llegas tarde, se acorta.\nBonos: las sesiones del bono valen 6 meses y son personales.",
 ];
 
 function settings(bool $fresh = false): array

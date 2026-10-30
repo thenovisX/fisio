@@ -15,13 +15,25 @@ function schema_sql(bool $sqlite): array
         "CREATE TABLE IF NOT EXISTS categories (id $ai, name VARCHAR(80) NOT NULL, position INT NOT NULL DEFAULT 0)$tail",
         "CREATE TABLE IF NOT EXISTS dishes (id $ai, category_id INT NOT NULL, name VARCHAR(120) NOT NULL, description TEXT NOT NULL,
             price DECIMAL(8,2) NOT NULL DEFAULT 0, allergens VARCHAR(255) NOT NULL DEFAULT '', photo VARCHAR(255) NOT NULL DEFAULT '',
-            available TINYINT NOT NULL DEFAULT 1, featured TINYINT NOT NULL DEFAULT 0, position INT NOT NULL DEFAULT 0)$tail",
+            available TINYINT NOT NULL DEFAULT 1, featured TINYINT NOT NULL DEFAULT 0, position INT NOT NULL DEFAULT 0,
+            duration INT NOT NULL DEFAULT 45)$tail",
         "CREATE TABLE IF NOT EXISTS reservations (id $ai, name VARCHAR(512) NOT NULL, phone VARCHAR(255) NOT NULL, email VARCHAR(512) NOT NULL DEFAULT '', email_idx VARCHAR(64) NOT NULL DEFAULT '',
             rdate DATE NOT NULL, rtime CHAR(5) NOT NULL, people INT NOT NULL, notes TEXT NOT NULL, status VARCHAR(20) NOT NULL DEFAULT 'pendiente',
             source VARCHAR(10) NOT NULL DEFAULT 'web', ip VARCHAR(64) NOT NULL DEFAULT '', created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
             customer_id INT NOT NULL DEFAULT 0, verify_token VARCHAR(255) NOT NULL DEFAULT '', seq INT NOT NULL DEFAULT 0,
             cancel_by VARCHAR(12) NOT NULL DEFAULT '', deleted TINYINT NOT NULL DEFAULT 0, lang CHAR(2) NOT NULL DEFAULT 'es',
-            reminders TINYINT NOT NULL DEFAULT 0)$tail",
+            reminders TINYINT NOT NULL DEFAULT 0, service_id INT NOT NULL DEFAULT 0, service VARCHAR(160) NOT NULL DEFAULT '',
+            duration INT NOT NULL DEFAULT 0, patient_id INT NOT NULL DEFAULT 0)$tail",
+        // Fichas de pacientes del centro (todo lo personal va cifrado). No se borran a las 24 h como las reservas:
+        // la historia clínica se guarda mientras haga falta para la asistencia (Ley 41/2002, mínimo 5 años).
+        "CREATE TABLE IF NOT EXISTS patients (id $ai, name VARCHAR(512) NOT NULL, phone VARCHAR(255) NOT NULL DEFAULT '', email VARCHAR(512) NOT NULL DEFAULT '',
+            phone_idx VARCHAR(64) NOT NULL DEFAULT '', birth VARCHAR(255) NOT NULL DEFAULT '', reason TEXT NOT NULL, history TEXT NOT NULL,
+            bono_total INT NOT NULL DEFAULT 0, bono_left INT NOT NULL DEFAULT 0, tags VARCHAR(255) NOT NULL DEFAULT '',
+            created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL)$tail",
+        "CREATE TABLE IF NOT EXISTS session_notes (id $ai, patient_id INT NOT NULL, rdate DATE NOT NULL, service VARCHAR(160) NOT NULL DEFAULT '',
+            pain INT NOT NULL DEFAULT -1, body TEXT NOT NULL, author VARCHAR(80) NOT NULL DEFAULT '', created_at DATETIME NOT NULL)$tail",
+        'CREATE INDEX idx_pat_phone ON patients (phone_idx)',
+        'CREATE INDEX idx_note_patient ON session_notes (patient_id)',
         "CREATE TABLE IF NOT EXISTS translations (h CHAR(40) NOT NULL, lang CHAR(2) NOT NULL, src TEXT NOT NULL, txt TEXT NOT NULL, manual TINYINT NOT NULL DEFAULT 0, at DATETIME NOT NULL, PRIMARY KEY (h, lang))$tail",
         "CREATE TABLE IF NOT EXISTS customers (id $ai, name VARCHAR(512) NOT NULL, email VARCHAR(512) NOT NULL, email_idx VARCHAR(64) NOT NULL DEFAULT '', phone VARCHAR(255) NOT NULL DEFAULT '',
             pass_hash VARCHAR(255) NOT NULL, created_at DATETIME NOT NULL, last_login DATETIME NULL,
@@ -41,30 +53,28 @@ function schema_sql(bool $sqlite): array
     ];
 }
 
-/** Carta de ejemplo para que la web no salga vacía. Se edita desde la app. */
+/**
+ * Tratamientos de ejemplo para que la web no salga vacía. Se editan desde la app.
+ * Cada uno: [nombre, descripción, precio, (sin uso: alérgenos), destacado, minutos que dura].
+ */
 function sample_menu(): array
 {
     return [
-        'Para empezar' => [
-            ['Ostra de Arcade', 'Al natural, con granizado de albariño y lima.', 4.5, 'moluscos,sulfitos', 0],
-            ['Tartar de atún rojo', 'Ají amarillo, aguacate y crujiente de maíz.', 18.0, 'pescado,soja,sesamo', 1],
-            ['Croqueta de chipirón en su tinta', 'Unidad.', 3.0, 'gluten,lacteos,huevos,moluscos', 0],
-            ['Pimientos de Padrón al carbón', 'Sal de escamas y aceite ahumado.', 8.0, '', 0],
+        'Fisioterapia' => [
+            ['Primera valoración', 'Entrevista, exploración y plan de tratamiento por escrito. Incluye la primera sesión.', 50.0, '', 1, 60],
+            ['Fisioterapia traumatológica', 'Esguinces, fracturas, prótesis y postoperatorios. Terapia manual y ejercicio.', 40.0, '', 0, 45],
+            ['Dolor de espalda y cuello', 'Lumbalgia, cervicalgia y ciática. Terapia manual, punción seca si hace falta y pautas para casa.', 40.0, '', 1, 45],
+            ['Suelo pélvico', 'Valoración y tratamiento en embarazo, posparto e incontinencia. En sala privada.', 50.0, '', 0, 50],
         ],
-        'Del fuego' => [
-            ['Pulpo a la brasa', 'Puré de patata ahumada, pimentón de la Vera y ajada.', 24.0, 'moluscos,lacteos', 1],
-            ['Rodaballo salvaje', 'A la parrilla, con beurre blanc de cítricos.', 32.0, 'pescado,lacteos', 0],
-            ['Lomo alto de vaca gallega', '500 g, madurado 45 días. Para compartir.', 48.0, '', 0],
-            ['Arroz negro de choco', 'Con alioli de ajo asado.', 22.0, 'moluscos,huevos,crustaceos', 0],
+        'Deporte' => [
+            ['Fisioterapia deportiva', 'Lesiones musculares y tendinopatías. Vuelta al deporte paso a paso.', 45.0, '', 1, 45],
+            ['Readaptación con ejercicio', 'Sesión guiada en sala con plan de fuerza adaptado a tu lesión.', 35.0, '', 0, 60],
+            ['Masaje de descarga', 'Antes o después de una competición.', 35.0, '', 0, 30],
         ],
-        'Dulces' => [
-            ['Tarta de queso de Arzúa', 'Cremosa, con frutos rojos.', 8.0, 'lacteos,huevos,gluten', 1],
-            ['Chocolate, café y avellana', '', 9.0, 'lacteos,frutos,huevos', 0],
-        ],
-        'Coctelería' => [
-            ['Flor de saúco', 'Gin, licor de flor de saúco, pomelo rosado y espuma de cava.', 12.0, 'sulfitos', 1],
-            ['Atlántico', 'Mezcal, licor de café y sal marina.', 12.0, '', 0],
-            ['Albariño, copa', 'D.O. Rías Baixas.', 4.5, 'sulfitos', 0],
+        'Técnicas' => [
+            ['Punción seca', 'Para puntos gatillo y contracturas que no ceden.', 30.0, '', 0, 30],
+            ['Ondas de choque', 'Fascitis plantar, epicondilitis y calcificaciones.', 40.0, '', 0, 30],
+            ['Pilates terapéutico', 'Grupos reducidos de 4 personas como máximo. Precio por sesión.', 15.0, '', 0, 55],
         ],
     ];
 }

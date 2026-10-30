@@ -5,9 +5,10 @@ const TOKEN_DAYS = 90;      // la sesión del panel caduca si no se usa en este 
 const TOKEN_MAX_DAYS = 180; // …y, aunque se use, como mucho dura esto (luego hay que volver a entrar)
 /** Permisos de los empleados. Ver las reservas y la carta lo pueden hacer todos. */
 const PERMS = [
-    'reservas' => 'Gestionar reservas: aceptar, rechazar, apuntar, editar y borrar',
-    'carta'    => 'Cambiar la carta',
-    'ajustes'  => 'Cambiar los ajustes de la web',
+    'reservas'  => 'Gestionar citas: aceptar, rechazar, apuntar, editar y borrar',
+    'pacientes' => 'Ver y editar las fichas de pacientes, notas de sesión y bonos',
+    'carta'     => 'Cambiar los tratamientos y precios',
+    'ajustes'   => 'Cambiar los ajustes de la web',
 ];
 
 function user_perms(array $u): array
