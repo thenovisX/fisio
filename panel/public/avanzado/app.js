@@ -1,4 +1,5 @@
-/* App de gestión del restaurante: reservas de hoy, calendario, carta y ajustes.
+/* Panel clásico (ajustes avanzados: idiomas, WhatsApp automático, email, usuarios, menús…). El panel del día a día es ../
+ * App de gestión del restaurante: reservas de hoy, calendario, carta y ajustes.
  * Funciona igual dentro de la app Android (Capacitor) y desde el navegador (/panel/ en iPhone). */
 (function () {
   'use strict';
@@ -60,7 +61,7 @@
   };
 
   /* ---------- Estado ---------- */
-  const defaultBase = NATIVE ? '' : new URL('..', location.href).href.replace(/\/$/, '');
+  const defaultBase = NATIVE ? '' : new URL('../..', location.href).href.replace(/\/$/, '');
   const S = {
     base: LS.get('base') || defaultBase,
     token: LS.get('token') || '',
@@ -154,7 +155,7 @@
         });
       } else if ('Notification' in window && Notification.permission === 'granted' && navigator.serviceWorker) {
         const reg = await navigator.serviceWorker.ready;
-        list.forEach((r, i) => reg.showNotification({ confirmada: 'Reserva confirmada', cancelada: 'Reserva cancelada' }[r.status] || 'Petición de reserva', { body: lines[i], tag: 'res-' + r.id + '-' + r.status, icon: 'icons/icon-192.png' }));
+        list.forEach((r, i) => reg.showNotification({ confirmada: 'Reserva confirmada', cancelada: 'Reserva cancelada' }[r.status] || 'Petición de reserva', { body: lines[i], tag: 'res-' + r.id + '-' + r.status, icon: '../icons/icon-192.png' }));
       }
     } catch (e) { /* sin permiso */ }
   }
@@ -164,7 +165,7 @@
     toast(body, 'new');
     try {
       if (LocalNotif) await LocalNotif.schedule({ notifications: [{ id: 2000000000 + (Date.now() % 100000000), title: 'Borrar datos', body }] });
-      else if ('Notification' in window && Notification.permission === 'granted' && navigator.serviceWorker) (await navigator.serviceWorker.ready).showNotification('Borrar datos', { body, tag: 'borrar', icon: 'icons/icon-192.png' });
+      else if ('Notification' in window && Notification.permission === 'granted' && navigator.serviceWorker) (await navigator.serviceWorker.ready).showNotification('Borrar datos', { body, tag: 'borrar', icon: '../icons/icon-192.png' });
     } catch (e) { /* sin permiso */ }
   }
 
@@ -240,7 +241,7 @@
 
   function renderSetup(error = '') {
     $('#app').innerHTML = `<section class="gate">
-      <img class="gate-logo" src="icons/icon-192.png" alt="">
+      <img class="gate-logo" src="../icons/icon-192.png" alt="">
       <h1>Conecta la app con la web del restaurante</h1>
       <p>Escribe la dirección de la web. Solo hay que hacerlo una vez.</p>
       <form id="setup" class="form" novalidate>
@@ -273,7 +274,7 @@
 
   function renderLogin(error = '', notice = '') {
     $('#app').innerHTML = `<section class="gate">
-      <img class="gate-logo" src="icons/icon-192.png" alt="">
+      <img class="gate-logo" src="../icons/icon-192.png" alt="">
       <h1>${esc(S.restaurant || 'Gestión del restaurante')}</h1>
       <p>Entra con el usuario que creaste al instalar la web.</p>
       <form id="login" class="form" novalidate>
@@ -313,7 +314,7 @@
   /* Recuperar la contraseña: se pide con el usuario o el email y llega un enlace de un solo uso (1 hora) */
   function renderForgot(user = '', error = '') {
     $('#app').innerHTML = `<section class="gate">
-      <img class="gate-logo" src="icons/icon-192.png" alt="">
+      <img class="gate-logo" src="../icons/icon-192.png" alt="">
       <h1>Recuperar la contraseña</h1>
       <p>Escribe tu usuario o tu email. Te mandaremos un enlace para elegir una contraseña nueva al email de tu usuario (si eres administrador y no tienes email puesto, al email de avisos del restaurante).</p>
       <form id="forgot-f" class="form" novalidate>
@@ -336,12 +337,12 @@
   }
 
   async function renderReset(token) {
-    $('#app').innerHTML = `<section class="gate"><img class="gate-logo" src="icons/icon-192.png" alt=""><h1>Contraseña nueva</h1><p>Comprobando el enlace…</p></section>`;
+    $('#app').innerHTML = `<section class="gate"><img class="gate-logo" src="../icons/icon-192.png" alt=""><h1>Contraseña nueva</h1><p>Comprobando el enlace…</p></section>`;
     let who;
     try { who = await api('reset_check', { body: { t: token } }); }
     catch (err) { return renderForgot('', err.message); }
     $('#app').innerHTML = `<section class="gate">
-      <img class="gate-logo" src="icons/icon-192.png" alt="">
+      <img class="gate-logo" src="../icons/icon-192.png" alt="">
       <h1>Contraseña nueva</h1>
       <p>Elige la nueva contraseña del usuario «${esc(who.username)}». Al guardarla se cierran sus sesiones abiertas en otros móviles.</p>
       <form id="reset-f" class="form" novalidate>
@@ -2010,13 +2011,11 @@
     startApp();
   }
 
-  setInterval(poll, 30000);
+  // setInterval(poll, 30000): los avisos ya los da el panel nuevo
   // El contador de personas en el local se actualiza solo cada minuto
   setInterval(() => { if (S.tab === 'hoy' && !S.query && !$('.sheet-wrap') && $('#hoy-body')) renderHoyBody($('#view')); }, 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && S.token) { poll(); if (S.tab === 'hoy') render(); } });
 
-  if (!NATIVE && 'serviceWorker' in navigator && location.protocol === 'https:') {
-    navigator.serviceWorker.register('sw.js').catch(() => { /* sin modo offline */ });
-  }
+  // Los avisos y el modo sin conexión los lleva el panel nuevo (../); este es solo para los ajustes avanzados
   boot();
 })();

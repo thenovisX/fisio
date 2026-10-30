@@ -1,0 +1,55 @@
+@import "@fontsource-variable/hanken-grotesk";
+@import "@fontsource-variable/fraunces";
+@import "@fontsource-variable/fraunces/wght-italic.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Panel del centro: oscuro como un reproductor de música (Spotify), con el coral y el salvia del tema de la web. */
+@layer base {
+  :root {
+    --background: 168 20% 5%;
+    --foreground: 40 30% 92%;
+    --card: 168 16% 9%;
+    --card-foreground: 40 30% 92%;
+    --popover: 168 16% 10%;
+    --popover-foreground: 40 30% 92%;
+    --primary: 10 100% 61%;
+    --primary-foreground: 168 30% 6%;
+    --secondary: 168 12% 15%;
+    --secondary-foreground: 40 30% 92%;
+    --muted: 168 12% 13%;
+    --muted-foreground: 160 8% 62%;
+    --accent: 168 12% 17%;
+    --accent-foreground: 40 30% 92%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 168 10% 17%;
+    --input: 168 10% 20%;
+    --ring: 10 100% 61%;
+    --radius: 0.9rem;
+    --salvia: 138 18% 67%;
+    --ambar: 38 95% 60%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  html, body, #root { min-height: 100%; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Hanken Grotesk Variable", system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  input, textarea, select { font-size: 16px; }
+}
+
+@layer utilities {
+  .font-display { font-family: "Fraunces Variable", Georgia, serif; letter-spacing: -0.02em; }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .tabular { font-variant-numeric: tabular-nums; }
+}

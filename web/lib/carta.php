@@ -265,7 +265,7 @@ function web_photos_info(): array
     foreach (tema_fotos() as $k => $info) {
         $label = $info['label'] ?? $k;
         $url = photo($k, 600);
-        if (!preg_match('#^https?://#', $url)) $url = base_url() . '/' . $url;
+        if ($url !== '' && !preg_match('#^https?://#', $url)) $url = base_url() . '/' . $url;
         $o[] = ['key' => $k, 'label' => $label, 'url' => $url, 'custom' => !empty($own[$k])];
     }
     return $o;

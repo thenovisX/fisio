@@ -1,6 +1,7 @@
-/* Service worker del panel (solo cuando se usa desde el navegador / iPhone). */
-const CACHE = 'panel-v18';
-const SHELL = ['./', 'index.html', 'app.css?v=18', 'app.js?v=18', 'manifest.webmanifest', 'icons/icon-192.png', 'alergenos.svg?v=3'];
+/* Service worker del panel (solo cuando se usa desde el navegador / iPhone).
+ * Red primero y copia en caché para abrir sin conexión; la API nunca se guarda. */
+const CACHE = 'panel-fisio-v1';
+const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -16,8 +17,7 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  // La API nunca se guarda en caché: siempre datos frescos
-  if (e.request.method !== 'GET' || url.pathname.includes('/api/') || url.origin !== location.origin) return;
+  if (e.request.method !== 'GET' || url.pathname.includes('/api/') || url.origin !== location.origin || url.pathname.includes('/avanzado/')) return;
   e.respondWith(
     fetch(e.request)
       .then((res) => {
