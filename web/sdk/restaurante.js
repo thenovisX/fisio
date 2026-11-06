@@ -1,7 +1,7 @@
 /*
  * SDK de la web del centro. Lo carga body_end() en todas las páginas. Hace tres cosas:
  *
- * 1. Ventana de reserva: cualquier elemento con data-book la abre (no hace falta nada más).
+ * 1. Ventana para pedir cita (2 pasos): cualquier elemento con data-book la abre (no hace falta nada más).
  * 2. Cuenta del cliente: formularios con data-api="c_login|c_register|c_profile|c_delete|c_forgot|c_reset", botones
  *    data-cancel="ID", data-confirm-res="ID", data-logout y data-resend. Ver TEMA.md.
  * 3. Instalar como app (data-install, data-install-ios, data-install-help, data-install-done).
@@ -68,38 +68,39 @@
     try { document.dispatchEvent(new CustomEvent('restaurante:' + name, { detail: detail })); } catch (e) { /* navegador antiguo */ }
   }
 
-  /* ---------- Reserva en 3 pasos ---------- */
+  /* ---------- Pedir cita en 2 pasos ----------
+   * Paso 1: tratamiento y hora. Al elegir tratamiento salen «Lo antes posible» (las primeras horas libres de los
+   * próximos días) y el día de hoy con sus horas. Tocar una hora pasa sola al paso 2.
+   * Paso 2: nombre y móvil (se recuerdan en el dispositivo si el paciente quiere) y enviar. */
   var dlg = $('#bk');
-  var B = { people: 1, service: null, date: R.today, time: '', slots: [] };
+  var B = { people: 1, service: null, date: R.today, time: '', slots: [], pane: 1 };
+  var MEM = 'cita_datos';
 
   function isClosed(day) {
     if ((R.closed || []).indexOf(day) !== -1) return true;
     var wd = String(((parse(day).getDay() + 6) % 7) + 1);
     return !((R.hours || {})[wd] || []).length;
   }
-
-  function summary() {
-    if (B.pane === 0) { $('#bk-sum').textContent = ''; return; }
-    var parts = [];
-    if (B.service) parts.push(B.service.name + ' (' + B.service.min + ' min)');
-    if (B.date) parts.push(longDay(B.date));
-    if (B.time) parts.push(B.time);
-    $('#bk-sum').textContent = parts.join(' · ');
+  function relDay(day) {
+    return day === R.today ? T('hoy') : day === addDays(R.today, 1) ? T('mañana') : DIAS[parse(day).getDay()] + ' ' + parse(day).getDate();
   }
 
   function showPane(n) {
     B.pane = n;
     $$('.bk-pane', dlg).forEach(function (p) { p.hidden = p.dataset.pane !== String(n); });
-    $('#bk-step').textContent = n === 0 ? '' : n <= 3 ? T('Paso %d de 3', n) : T('Hecho');
-    $('#bk-title').textContent = T(['¿Cómo quieres pedir cita?', 'Pedir cita', 'Elige la hora', 'Tus datos', 'Petición enviada'][n]);
-    summary();
-    if (n === 0) updateCall();
-    var focusable = $('.bk-pane:not([hidden]) button, .bk-pane:not([hidden]) input', dlg);
-    if (n > 1 && focusable) focusable.focus({ preventScroll: true });
-    if (n === 2) loadSlots();
+    $('#bk-step').textContent = n <= 2 ? T('Paso %d de 2', n) : T('Hecho');
+    $('#bk-title').textContent = T(['', 'Pedir cita', 'Tus datos', 'Petición enviada'][n]);
+    if (n === 1) updateCall();
+    if (n === 2) {
+      $('#bk-pick-when').textContent = longDay(B.date).replace(/^./, function (c) { return c.toUpperCase(); }) + ' · ' + B.time;
+      $('#bk-pick-what').textContent = B.service ? B.service.name + ' · ' + B.service.min + ' min' : '';
+      var f = $('#bk-form'), first = !f.name.value ? f.name : !f.phone.value ? f.phone : null;
+      if (first && !$('#bk-fields').hidden) first.focus({ preventScroll: true });
+    }
+    $('.bk-in', dlg).scrollTop = 0;
   }
 
-  /* ---------- ¿Está abierto ahora? (hora del restaurante, no la del móvil) ---------- */
+  /* ---------- ¿Está abierto ahora? (hora del centro, no la del móvil) ---------- */
   var NOW0 = R.now && R.now.match(/(\d+)-(\d+)-(\d+) (\d+):(\d+)/);
   var OFFSET = NOW0 ? Date.UTC(+NOW0[1], +NOW0[2] - 1, +NOW0[3], +NOW0[4], +NOW0[5]) - Date.now() : null;
   function restNow() {
@@ -132,7 +133,7 @@
     if (st.open) {
       a.setAttribute('href', a.dataset.href);
       a.removeAttribute('aria-disabled');
-      txt.textContent = T('Estamos abiertos ahora: %s', R.phone);
+      txt.textContent = R.phone;
     } else {
       a.removeAttribute('href');
       a.setAttribute('aria-disabled', 'true');
@@ -164,13 +165,15 @@
     B.time = '';
     $$('.bk-day', dlg).forEach(function (b) { b.setAttribute('aria-checked', String(b.dataset.day === day)); });
     $('#bk-date').value = day;
-    summary();
+    var sel = $('.bk-day[aria-checked="true"]', dlg);
+    if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    loadSlots();
   }
 
   function slotButtons(list) {
     return '<div class="bk-slot-grid">' + list.map(function (s) {
       var off = s.left < B.people;
-      return '<button type="button" class="bk-slot" data-time="' + s.time + '" aria-pressed="' + (s.time === B.time) + '"' + (off ? ' disabled aria-label="' + s.time + ', ' + T('completo') + '"' : '') + '>' + s.time + '</button>';
+      return '<button type="button" class="bk-slot" data-time="' + s.time + '"' + (off ? ' disabled aria-label="' + s.time + ', ' + T('completo') + '"' : '') + '>' + s.time + '</button>';
     }).join('') + '</div>';
   }
 
@@ -179,26 +182,41 @@
     var free = B.slots.filter(function (s) { return s.left >= B.people; });
     if (!free.length) {
       box.innerHTML = '<p class="bk-msg">' + esc(B.reason || T('Ese día ya no quedan huecos libres')) + ' ' + (R.phone ? T('Prueba otro día o llámanos.') : T('Prueba otro día.')) + '</p>';
-    } else {
-      var am = B.slots.filter(function (s) { return s.time < '15:00'; });
-      var pm = B.slots.filter(function (s) { return s.time >= '15:00'; });
-      box.innerHTML = (am.length ? '<h3>' + T('Mañana') + '</h3>' + slotButtons(am) : '') + (pm.length ? '<h3>' + T('Tarde') + '</h3>' + slotButtons(pm) : '');
+      return;
     }
-    $('#bk-to3').disabled = !B.time;
+    var am = free.filter(function (s) { return s.time < '15:00'; });
+    var pm = free.filter(function (s) { return s.time >= '15:00'; });
+    box.innerHTML = (am.length ? '<h3>' + T('Mañana') + '</h3>' + slotButtons(am) : '') + (pm.length ? '<h3>' + T('Tarde') + '</h3>' + slotButtons(pm) : '');
   }
 
+  var slotReq = 0;
   function loadSlots() {
-    var box = $('#bk-slots');
+    var box = $('#bk-slots'), n = ++slotReq;
     box.innerHTML = '<p class="bk-msg">' + T('Buscando horas libres…') + '</p>';
-    $('#bk-to3').disabled = true;
     api('slots&date=' + encodeURIComponent(B.date) + (B.service ? '&service=' + B.service.id : '')).then(function (d) {
+      if (n !== slotReq) return;
       B.slots = d.slots;
       B.reason = d.open ? '' : d.reason + '.';
-      if (B.time && !B.slots.some(function (s) { return s.time === B.time && s.left >= B.people; })) B.time = '';
       renderSlots();
     }).catch(function (e) {
-      box.innerHTML = '<p class="bk-msg">' + esc(e.message) + '</p>';
+      if (n === slotReq) box.innerHTML = '<p class="bk-msg">' + esc(e.message) + '</p>';
     });
+  }
+
+  function loadSoon() {
+    var box = $('#bk-soon');
+    box.innerHTML = '<p class="bk-msg">' + T('Buscando horas libres…') + '</p>';
+    api('next_slots&n=6' + (B.service ? '&service=' + B.service.id : '')).then(function (list) {
+      box.innerHTML = list.length ? list.map(function (s) {
+        return '<button type="button" class="bk-soon-b" data-date="' + s.date + '" data-time="' + s.time + '"><small>' + esc(relDay(s.date)) + '</small><b>' + s.time + '</b></button>';
+      }).join('') : '<p class="bk-msg">' + T('Ese día ya no quedan huecos libres') + '</p>';
+    }).catch(function (e) { box.innerHTML = '<p class="bk-msg">' + esc(e.message) + '</p>'; });
+  }
+
+  function choose(date, time) {
+    B.date = date;
+    B.time = time;
+    showPane(2);
   }
 
   function resetBooking() {
@@ -208,31 +226,66 @@
     f.privacy.checked = false;
     $('#bk-err').textContent = '';
     $('#bk-send').disabled = false;
-    $('#bk-send').textContent = T('Enviar petición');
+    $('#bk-send').textContent = T('Pedir la cita');
   }
 
+  /** Enseña el tratamiento elegido en una línea («Cambiar» vuelve a abrir la lista) y carga las horas. */
   function pickService(id) {
     var r = id ? $('#bk-svcs input[value="' + id + '"]', dlg) : $('#bk-svcs input:checked', dlg);
     if (!r) return;
     r.checked = true;
     B.service = { id: +r.value, name: r.dataset.name, min: +r.dataset.min };
     B.time = '';
-    summary();
+    $('#bk-svc-name').textContent = B.service.name;
+    $('#bk-svc-meta').textContent = r.dataset.meta || '';
+    showServiceList(false);
+    $('#bk-when').hidden = false;
+    loadSoon();
+    loadSlots();
+  }
+  function showServiceList(on) {
+    var box = $('#bk-svc-box');
+    if (!box) return;
+    $('#bk-svcs').hidden = !on;
+    $('#bk-svc-chosen').hidden = on || !B.service;
+    box.classList.toggle('is-chosen', !on);
+  }
+
+  function recall() {
+    if (R.customer) return;
+    try {
+      var m = JSON.parse(localStorage.getItem(MEM) || 'null'), f = $('#bk-form');
+      if (m && !f.name.value && !f.phone.value) { f.name.value = m.name || ''; f.phone.value = m.phone || ''; f.email.value = m.email || ''; }
+    } catch (e) { /* sin almacenamiento */ }
+  }
+  function remember(d) {
+    var box = $('#bk-remember');
+    try {
+      if (box && box.checked) localStorage.setItem(MEM, JSON.stringify({ name: d.name, phone: d.phone, email: d.email }));
+      else if (box) localStorage.removeItem(MEM);
+    } catch (e) { /* sin almacenamiento */ }
   }
 
   function openBooking(serviceId) {
     if (!dlg) return;
-    if (serviceId) pickService(serviceId);
-    if (!$('.bk-pane[data-pane="4"]', dlg).hidden) resetBooking();
+    if (!$('.bk-pane[data-pane="3"]', dlg).hidden) resetBooking();
     renderDays();
     if (isClosed(B.date)) {
-      for (var i = 0; i < 14; i++) { var d = addDays(R.today, i); if (!isClosed(d)) { pickDate(d); break; } }
+      for (var i = 0; i < 14; i++) { var d = addDays(R.today, i); if (!isClosed(d)) { B.date = d; break; } }
     }
+    $$('.bk-day', dlg).forEach(function (b) { b.setAttribute('aria-checked', String(b.dataset.day === B.date)); });
     $('#bk-date').min = R.today;
     $('#bk-date').max = addDays(R.today, R.daysAhead || 60);
     $('#bk-date').value = B.date;
+    recall();
     if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
-    showPane($('.bk-pane[data-pane="0"]', dlg) ? 0 : 1);
+    showPane(1);
+    var only = $$('#bk-svcs input', dlg);
+    if (serviceId) pickService(serviceId);
+    else if (only.length === 1) pickService(only[0].value);
+    else if (B.service) pickService(B.service.id);
+    else if (!only.length) { loadSoon(); loadSlots(); }
+    else showServiceList(true);
     emit('reserva-abierta', {});
   }
 
@@ -246,41 +299,20 @@
     });
     dlg.addEventListener('click', function (e) {
       if (e.target === dlg || e.target.closest('[data-close]')) { dlg.close(); return; }
-      if (e.target.closest('.bk-opt.is-off')) { e.preventDefault(); return; }
+      if (e.target.closest('#bk-call.is-off')) { e.preventDefault(); return; }
+      if (e.target.closest('#bk-svc-chosen')) { showServiceList(true); return; }
       var day = e.target.closest('.bk-day');
       if (day && !day.disabled) return pickDate(day.dataset.day);
+      var soon = e.target.closest('.bk-soon-b');
+      if (soon) return choose(soon.dataset.date, soon.dataset.time);
       var slot = e.target.closest('.bk-slot');
-      if (slot && !slot.disabled) {
-        B.time = slot.dataset.time;
-        $$('.bk-slot', dlg).forEach(function (s) { s.setAttribute('aria-pressed', String(s === slot)); });
-        $('#bk-to3').disabled = false;
-        summary();
-        return;
-      }
+      if (slot && !slot.disabled) return choose(B.date, slot.dataset.time);
       var nx = e.target.closest('[data-next]');
-      if (nx && !nx.disabled) {
-        // Sin tratamiento elegido no se buscan horas: cada uno dura distinto
-        if (nx.dataset.next === '2' && $('#bk-svcs', dlg) && !B.service) {
-          toast(T('Elige primero un tratamiento'));
-          $('#bk-svcs', dlg).scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-          return;
-        }
-        showPane(+nx.dataset.next);
-      }
+      if (nx && !nx.disabled) showPane(+nx.dataset.next);
     });
     dlg.addEventListener('change', function (e) {
       if (e.target.name === 'service') {
         pickService(e.target.value);
-      } else if (e.target.name === 'people') {
-        B.people = +e.target.value;
-        var more = $('[name=people_more]', dlg);
-        if (more) { more.value = ''; more.classList.remove('is-on'); }
-        summary();
-      } else if (e.target.name === 'people_more' && e.target.value) {
-        B.people = +e.target.value;
-        $$('[name=people]', dlg).forEach(function (r) { r.checked = false; });
-        e.target.classList.add('is-on');
-        summary();
       } else if (e.target.id === 'bk-date' && e.target.value) {
         if (isClosed(e.target.value)) { toast(T('Ese día el centro está cerrado')); e.target.value = B.date; return; }
         pickDate(e.target.value);
@@ -301,14 +333,15 @@
       if (!data.phone && R.customer) { $('#bk-fields').hidden = false; }
       if (!R.customer || !$('#bk-fields').hidden) {
         if (!data.name && !data.phone) { err.textContent = T('Faltan tu nombre y un teléfono móvil.'); $('#bk-fields').hidden = false; return; }
-        if (!data.name) { err.textContent = T('Falta tu nombre.'); $('#bk-fields').hidden = false; return; }
-        if (!data.phone) { err.textContent = T('Falta un teléfono móvil.'); $('#bk-fields').hidden = false; return; }
+        if (!data.name) { err.textContent = T('Falta tu nombre.'); $('#bk-fields').hidden = false; f.name.focus(); return; }
+        if (!data.phone) { err.textContent = T('Falta un teléfono móvil.'); $('#bk-fields').hidden = false; f.phone.focus(); return; }
       }
       if (!data.privacy) { err.textContent = T('Marca la casilla para aceptar las políticas.'); return; }
       var btn = this;
       btn.disabled = true;
       btn.textContent = T('Enviando…');
       api('reserve', data).then(function (r) {
+        remember(data);
         $('#bk-done-t').textContent = T('Petición realizada');
         $('#bk-done-msg').textContent = r.message;
         var more = $('#bk-done-more');
@@ -316,12 +349,14 @@
         if (r.linked) more.innerHTML = T('Esperando confirmación. La verás en <a href="cuenta.php">tu cuenta</a>, donde también podrás cancelarla.');
         else if (r.email) more.textContent = wait + ' ' + T('Si creas una cuenta con el mismo email, también la verás allí.');
         else more.textContent = wait + ' ' + T('Como no has puesto email, esta cita no aparecerá en ninguna cuenta.');
-        showPane(4);
+        showPane(3);
         emit('reserva', r);
       }).catch(function (e) {
         err.textContent = e.message;
         btn.disabled = false;
-        btn.textContent = T('Enviar petición');
+        btn.textContent = T('Pedir la cita');
+        // Si alguien cogió esa hora mientras tanto, volver a las horas
+        if (/hueco|hora|libre|sitio/i.test(e.message)) { showPane(1); loadSoon(); loadSlots(); }
       });
     });
 

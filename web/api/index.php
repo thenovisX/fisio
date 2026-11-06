@@ -38,6 +38,8 @@ try {
         case 'slots':
             // Con &service=ID, solo las horas en las que cabe ese tratamiento entero
             out(day_slots((string)($_GET['date'] ?? ''), false, 0, service_minutes(service_find((int)($_GET['service'] ?? 0)))));
+        case 'next_slots':
+            out(next_slots(service_minutes(service_find((int)($_GET['service'] ?? 0))), (int)($_GET['n'] ?? 6)));
         case 'reserve':
             only_post(); same_origin_only();
             out(create_public_reservation($in), 201);
@@ -218,6 +220,10 @@ try {
             only_post();
             require_perm($user, 'reservas');
             out(save_reservation($in));
+        case 'reservation_attend':
+            only_post();
+            require_perm($user, 'reservas');
+            out(set_attended($id, (int)($in['attended'] ?? 0)));
         case 'reservation_delete':
             only_post();
             require_perm($user, 'reservas');

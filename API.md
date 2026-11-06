@@ -13,6 +13,7 @@ Idioma: la web pública manda `?lang=es|en|pt|gl` (o la cookie `idioma`) y los m
 | `info` | GET | — | nombre, frase, contacto, horario, días cerrados, políticas |
 | `menu` | GET | — | carta: `categories` (con `dishes`), `allergens` y `carta_on` y `menus` (menús activos traducidos) |
 | `slots&date=AAAA-MM-DD&service=ID` | GET | — | `open`, `reason`, `slots: [{time, left}]`. Con `service`, solo las horas en las que cabe toda la sesión de ese tratamiento |
+| `next_slots&service=ID&n=6` | GET | — | primeras horas libres de los próximos 30 días para ese tratamiento: `[{date, time}]`, como mucho la primera de la mañana y la primera de la tarde de cada día |
 | `reserve` | POST | `service_id` (obligatorio si hay tratamientos), `date`, `time`, `people`, `name`, `phone`, `email`?, `notes`?, `privacy: 1`, `website: ''` | `id`, `when`, `message`, `linked` (sale en una cuenta), `email` |
 | `erase_request` | POST JSON | `contact` (email o teléfono): pide borrar todos los datos; responde siempre lo mismo. Con email llega un enlace; con teléfono, la petición sale en la app |
 
@@ -64,6 +65,7 @@ Todos los usuarios pueden leer reservas y carta. Para cambiar hacen falta permis
 | `reservation_status` | POST | `id`, `status` (`esperando`, `confirmada`, `rechazada`, `cancelada`). Con el WhatsApp automático activado, pasar a `esperando` manda el mensaje por la API de Meta y la respuesta lleva `wa_sent` y `wa_error` |
 | `reservation_whatsapp` | POST | `id` de una reserva en `esperando`: reenvía el WhatsApp por la API de Meta (`wa_sent`, `wa_error`) |
 | `reservation_save` | POST | `id`? y los datos de la cita, con `service_id`, `service`, `duration` y `patient_id`? (si no va, se une a la ficha con el mismo teléfono) |
+| `reservation_attend` | POST | `id`, `attended` (1 vino, -1 no vino, 0 quitar la marca). Solo citas que ya han empezado. Las citas llevan `attended` |
 | `reservation_delete` | POST | `id` (desaparece de la app; el enlace del cliente dirá «cancelada») |
 | `admin_menu` | GET | carta completa, también lo agotado, `menus` (todos), `carta_on` y `menus_button` |
 | `category_save`, `category_move`, `category_delete` | POST | `id`, `name` / `dir` |

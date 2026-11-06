@@ -60,7 +60,7 @@ function purge_old_reservations(bool $force = false): int
 }
 
 /** Actualiza la base de datos de instalaciones anteriores sin perder datos. */
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 /** Versión de las condiciones y la privacidad: se guarda con cada aceptación. Súbela si cambias los textos. */
 const LEGAL_VERSION = '2026-10-22';
 function ensure_schema(): void
@@ -169,6 +169,10 @@ function ensure_schema(): void
         ] as $sql) {
             try { db()->exec($sql); } catch (Throwable $e) { /* ya existe */ }
         }
+    }
+    if ($v < 12) {
+        // v12: asistencia de cada cita (1 vino, -1 no vino, 0 sin marcar)
+        try { db()->exec('ALTER TABLE reservations ADD COLUMN attended INT NOT NULL DEFAULT 0'); } catch (Throwable $e) { /* ya existe */ }
     }
     q("DELETE FROM settings WHERE k = '_schema'");
     q("INSERT INTO settings (k, v) VALUES ('_schema', ?)", [(string)SCHEMA_VERSION]);

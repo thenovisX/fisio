@@ -23,6 +23,7 @@ export interface Cita {
   service: string;
   duration: number;
   patient_id: number;
+  attended: number; // 1 vino, -1 no vino, 0 sin marcar
   confirm_url?: string;
   wa_url?: string;
   wa_auto?: boolean;
@@ -72,6 +73,7 @@ export interface Paciente {
   created_at: string;
   updated_at: string;
   visits?: number;
+  missed?: number;
   last?: string;
   next?: string;
   notes?: Nota[] | number;
@@ -194,3 +196,10 @@ export const STATUS_TXT: Record<Status, string> = {
   rechazada: "Rechazada",
   cancelada: "Cancelada",
 };
+
+/** ¿Ha llegado ya la hora de la cita? (para marcar si vino) */
+export const yaEmpezo = (c: Pick<Cita, "date" | "time">) => c.date < todayISO() || (c.date === todayISO() && toMin(c.time) <= nowMin());
+
+/** Texto del WhatsApp para recordar una cita. */
+export const recordatorio = (c: Cita, centro: string) =>
+  `Hola ${c.name.split(" ")[0]}, te recordamos tu cita en ${centro} ${relDay(c.date) === "Mañana" ? "mañana" : relDay(c.date) === "Hoy" ? "hoy" : "el " + fmtDay(c.date).toLowerCase()} a las ${c.time}${c.service ? " (" + c.service + ")" : ""}. Si no puedes venir, avísanos por aquí. ¡Hasta pronto!`;

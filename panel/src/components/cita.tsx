@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Check, ChevronRight, Clock, MessageCircle, Pencil, Phone, Send, Trash2, UserPlus, UserRound, X } from "lucide-react";
+import { CalendarClock, Check, ChevronRight, Clock, MessageCircle, Pencil, Phone, Repeat, Send, Trash2, UserCheck, UserPlus, UserRound, UserX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { api, endOf, fmtDay, relDay, telHref, waHref, type Cita } from "@/lib/api";
+import { ACTIVE, addDays, api, endOf, fmtDay, fmtShort, recordatorio, relDay, telHref, waHref, yaEmpezo, type Cita } from "@/lib/api";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { Avatar, Chip, Hoja, StatusPill, Spinner } from "./bits";
@@ -29,6 +29,8 @@ export function CitaRow({ c, onOpen, showDay, now }: { c: Cita; onOpen: (c: Cita
         <p className="truncate text-[15px] font-semibold">{c.name}</p>
         <p className="truncate text-[13px] text-muted-foreground">{c.service || "Cita"} · {c.duration} min{c.notes ? " · " + c.notes : ""}</p>
       </div>
+      {c.attended === 1 && <span className="inline-flex items-center gap-1 rounded-full bg-salvia/15 px-2 py-0.5 text-[11px] font-semibold text-salvia"><UserCheck className="h-3.5 w-3.5" /><span className="hidden sm:inline">Vino</span></span>}
+      {c.attended === -1 && <span className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive"><UserX className="h-3.5 w-3.5" />No vino</span>}
       {c.status !== "confirmada" && <StatusPill status={c.status} className="hidden sm:inline-flex" />}
       {c.status === "pendiente" && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary sm:hidden" />}
       {c.status === "esperando" && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-ambar sm:hidden" />}
@@ -46,6 +48,9 @@ export function CitaSheet({ cita, onClose }: { cita: Cita | null; onClose: () =>
   if (!cita) return <Hoja open={false} onClose={onClose} title="">{null}</Hoja>;
   const c = cita;
   const puede = can("reservas");
+  const activa = ACTIVE.includes(c.status);
+  const empezada = yaEmpezo(c);
+  const recordable = activa && !empezada && c.status === "confirmada";
 
   async function run(key: string, fn: () => Promise<void>) {
     setBusy(key);
@@ -79,6 +84,28 @@ export function CitaSheet({ cita, onClose }: { cita: Cita | null; onClose: () =>
     if (!confirm("¿Borrar esta cita? Desaparece de la agenda.")) throw new Error("Cancelado");
     await api("reservation_delete", { body: { id: c.id } });
     toast("Cita borrada");
+    bump();
+    onClose();
+  });
+  const marcar = (attended: number) => run("vino" + attended, async () => {
+    await api("reservation_attend", { body: { id: c.id, attended } });
+    bump();
+    onClose();
+    if (attended === 1 && c.patient_id && can("pacientes")) toast.success("Marcada: vino", { action: { label: "Apuntar nota", onClick: () => openPatient(c.patient_id) } });
+    else toast(attended === -1 ? "Marcada: no vino" : attended === 1 ? "Marcada: vino" : "Marca quitada");
+  });
+  // Siguiente sesión con un toque: mismo tratamiento y misma hora dentro de N semanas, si hay hueco
+  const repetir = (weeks: number) => run("rep" + weeks, async () => {
+    const date = addDays(c.date, weeks * 7);
+    const d = await api<{ slots: { time: string; left: number }[] }>(`slots_admin&date=${date}&minutes=${c.duration}`);
+    if (!d.slots.some((x) => x.time === c.time && x.left > 0)) {
+      onClose();
+      nuevaCita({ name: c.name, phone: c.phone, service_id: c.service_id, patient_id: c.patient_id, date });
+      toast(`El ${fmtShort(date)} a las ${c.time} está ocupado: elige otra hora`);
+      return;
+    }
+    await api("reservation_save", { body: { name: c.name, phone: c.phone, email: c.email, date, time: c.time, people: 1, service_id: c.service_id, service: c.service, duration: c.duration, patient_id: c.patient_id, notes: "" } });
+    toast.success(`Siguiente sesión: ${fmtShort(date)} a las ${c.time}`);
     bump();
     onClose();
   });
@@ -143,11 +170,33 @@ export function CitaSheet({ cita, onClose }: { cita: Cita | null; onClose: () =>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <a href={telHref(c.phone)} className="flex flex-col items-center gap-1.5 rounded-2xl bg-secondary py-3 text-[13px] font-medium hover:bg-accent"><Phone className="h-5 w-5" />Llamar</a>
-            <a href={waHref(c.phone)} target="_blank" rel="noopener" className="flex flex-col items-center gap-1.5 rounded-2xl bg-secondary py-3 text-[13px] font-medium hover:bg-accent"><MessageCircle className="h-5 w-5" />WhatsApp</a>
+            <a href={recordable ? waHref(c.phone, recordatorio(c, settings?.name || "")) : waHref(c.phone)} target="_blank" rel="noopener" className="flex flex-col items-center gap-1.5 rounded-2xl bg-secondary py-3 text-[13px] font-medium hover:bg-accent"><MessageCircle className="h-5 w-5" />{recordable ? "Recordar" : "WhatsApp"}</a>
             {can("pacientes") && (c.patient_id
               ? <button type="button" onClick={() => { onClose(); openPatient(c.patient_id); }} className="flex flex-col items-center gap-1.5 rounded-2xl bg-secondary py-3 text-[13px] font-medium hover:bg-accent"><UserRound className="h-5 w-5" />Ficha</button>
               : <button type="button" onClick={crearFicha} disabled={!!busy} className="flex flex-col items-center gap-1.5 rounded-2xl bg-secondary py-3 text-[13px] font-medium hover:bg-accent">{busy === "ficha" ? <Spinner /> : <UserPlus className="h-5 w-5" />}Crear ficha</button>)}
           </div>
+          {puede && activa && empezada && (
+            <div className="rounded-2xl border p-4">
+              <p className="mb-3 text-sm font-semibold">{c.attended === 0 ? "¿Vino a la cita?" : c.attended === 1 ? "Vino a la cita" : "No vino a la cita"}</p>
+              <div className="flex gap-2">
+                <Button variant={c.attended === 1 ? "default" : "secondary"} className="flex-1" disabled={!!busy} onClick={() => marcar(c.attended === 1 ? 0 : 1)}>{busy === "vino1" || busy === "vino0" ? <Spinner /> : <UserCheck />}Vino</Button>
+                <Button variant={c.attended === -1 ? "destructive" : "secondary"} className="flex-1" disabled={!!busy} onClick={() => marcar(c.attended === -1 ? 0 : -1)}>{busy === "vino-1" ? <Spinner /> : <UserX />}No vino</Button>
+              </div>
+            </div>
+          )}
+          {puede && activa && (
+            <div className="rounded-2xl border p-4">
+              <p className="mb-1 flex items-center gap-2 text-sm font-semibold"><Repeat className="h-4 w-4 text-primary" />Siguiente sesión</p>
+              <p className="mb-3 text-[13px] text-muted-foreground">Mismo tratamiento, a las {c.time}.</p>
+              <div className="flex flex-wrap gap-2">
+                {[1, 2].map((w) => <Chip key={w} className="inline-flex items-center gap-2" onClick={() => repetir(w)} disabled={!!busy}>{busy === "rep" + w ? <Spinner /> : null}{w === 1 ? "En 1 semana" : "En 2 semanas"} · {fmtShort(addDays(c.date, w * 7))}</Chip>)}
+                <Chip onClick={() => { onClose(); nuevaCita({ name: c.name, phone: c.phone, service_id: c.service_id, patient_id: c.patient_id }); }}>Otro día</Chip>
+              </div>
+            </div>
+          )}
+          {puede && activa && !empezada && c.status !== "confirmada" && (
+            <button type="button" onClick={() => { onClose(); nuevaCita({ edit: c }); }} className="flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold hover:bg-secondary"><CalendarClock className="h-4 w-4 text-primary" />Cambiar día u hora</button>
+          )}
           <dl className="divide-y rounded-2xl border text-[15px]">
             <div className="flex justify-between gap-4 px-4 py-3"><dt className="text-muted-foreground">Teléfono</dt><dd className="tabular">{c.phone || "—"}</dd></div>
             {c.email && <div className="flex justify-between gap-4 px-4 py-3"><dt className="text-muted-foreground">Email</dt><dd className="truncate">{c.email}</dd></div>}

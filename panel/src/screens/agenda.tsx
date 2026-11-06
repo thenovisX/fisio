@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Lock, LockOpen } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock, LockOpen, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { addDays, api, DIAS_C, fmtDay, iso, MESES, parseISO, todayISO, type Cita } from "@/lib/api";
+import { addDays, api, DIAS_C, fmtDay, iso, MESES, norm, parseISO, todayISO, type Cita } from "@/lib/api";
 import { useApp, useLoad } from "@/lib/store";
-import { Spinner } from "@/components/bits";
-import { CitaSheet } from "@/components/cita";
+import { Chip, Chips, Empty, Hoja, inputCls, Spinner } from "@/components/bits";
+import { CitaRow, CitaSheet } from "@/components/cita";
 import { DayTimeline, horasDelDia } from "@/components/timeline";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +18,7 @@ export function Agenda() {
   const [day, setDay] = useState(() => { const d = localStorage.getItem("agendaDay"); localStorage.removeItem("agendaDay"); return d || todayISO(); });
   const [month, setMonth] = useState(day.slice(0, 7));
   const [open, setOpen] = useState<Cita | null>(null);
+  const [buscar, setBuscar] = useState(false);
   const mes = useLoad(() => api<Mes>("month&month=" + month), [month]);
   const lista = useLoad(() => api<Cita[]>(`reservations&from=${day}&to=${day}`), [day]);
 
@@ -45,7 +46,10 @@ export function Agenda() {
   return (
     <div className="lg:grid lg:grid-cols-[360px_1fr] lg:gap-10">
       <div className="lg:sticky lg:top-6 lg:self-start">
-        <h1 className="mb-5 font-display text-[40px] leading-none">Agenda</h1>
+        <div className="mb-5 flex items-center justify-between">
+          <h1 className="font-display text-[40px] leading-none">Agenda</h1>
+          <Button variant="secondary" onClick={() => setBuscar(true)}><Search />Buscar cita</Button>
+        </div>
         <div className="rounded-[28px] bg-card p-4 ring-1 ring-border">
           <div className="mb-3 flex items-center justify-between">
             <Button variant="ghost" size="icon" onClick={() => mover(-1)} aria-label="Mes anterior"><ChevronLeft /></Button>
@@ -91,6 +95,38 @@ export function Agenda() {
         {lista.loading && !lista.data ? <div className="py-10 text-center"><Spinner /></div> : <DayTimeline date={day} citas={lista.data || []} onOpen={setOpen} />}
       </div>
       <CitaSheet cita={open} onClose={() => setOpen(null)} />
+      <BuscarCita open={buscar} onClose={() => setBuscar(false)} onPick={(c) => { setBuscar(false); setDay(c.date); setMonth(c.date.slice(0, 7)); setOpen(c); }} />
     </div>
+  );
+}
+
+/* Buscar una cita por nombre, teléfono o tratamiento: de 2 meses atrás a 6 meses adelante. */
+function BuscarCita({ open, onClose, onPick }: { open: boolean; onClose: () => void; onPick: (c: Cita) => void }) {
+  const [q, setQ] = useState("");
+  const [filtro, setFiltro] = useState<"proximas" | "pasadas" | "sin">("proximas");
+  const hoy = todayISO();
+  const lista = useLoad(() => open ? api<Cita[]>(`reservations&from=${addDays(hoy, -60)}&to=${addDays(hoy, 180)}`) : Promise.resolve(null), [open]);
+  const t = norm(q.trim());
+  const digits = q.replace(/\D/g, "");
+  const res = (lista.data || [])
+    .filter((c) => filtro === "proximas" ? c.date >= hoy && ["pendiente", "esperando", "confirmada"].includes(c.status)
+      : filtro === "pasadas" ? c.date < hoy
+      : c.date >= hoy && (c.status === "pendiente" || c.status === "esperando"))
+    .filter((c) => !t || norm(c.name).includes(t) || norm(c.service).includes(t) || (digits.length >= 3 && c.phone.replace(/\D/g, "").includes(digits)));
+  if (filtro === "pasadas") res.reverse();
+  return (
+    <Hoja open={open} onClose={onClose} title="Buscar cita">
+      <div className="space-y-4">
+        <input className={inputCls} autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nombre, teléfono o tratamiento" />
+        <Chips>
+          <Chip active={filtro === "proximas"} onClick={() => setFiltro("proximas")}>Próximas</Chip>
+          <Chip active={filtro === "sin"} onClick={() => setFiltro("sin")}>Sin confirmar</Chip>
+          <Chip active={filtro === "pasadas"} onClick={() => setFiltro("pasadas")}>Pasadas</Chip>
+        </Chips>
+        {lista.loading && !lista.data ? <div className="py-8 text-center"><Spinner /></div>
+          : res.length ? <div className="space-y-1">{res.slice(0, 80).map((c) => <CitaRow key={c.id} c={c} onOpen={onPick} showDay />)}</div>
+          : <Empty title="No hay citas" text={q ? "Prueba con otro nombre o con el teléfono." : "No hay citas con este filtro."} />}
+      </div>
+    </Hoja>
   );
 }

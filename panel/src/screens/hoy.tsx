@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Inbox, Phone, Sparkles } from "lucide-react";
-import { ACTIVE, addDays, api, endOf, fmtDay, nowMin, relDay, telHref, toMin, todayISO, type Cita } from "@/lib/api";
+import { toast } from "sonner";
+import { ArrowRight, Bell, Check, Inbox, MessageCircle, Phone, Sparkles, UserCheck, UserX } from "lucide-react";
+import { ACTIVE, addDays, api, endOf, fmtDay, LS, nowMin, recordatorio, relDay, telHref, toMin, todayISO, waHref, type Cita } from "@/lib/api";
 import { useApp, useLoad } from "@/lib/store";
-import { Avatar, Chips, SectionTitle, Spinner } from "@/components/bits";
+import { Avatar, Chips, Hoja, SectionTitle, Spinner } from "@/components/bits";
+import { Button } from "@/components/ui/button";
 import { CitaSheet } from "@/components/cita";
 import { DayTimeline } from "@/components/timeline";
 import { cn } from "@/lib/utils";
@@ -15,9 +17,10 @@ function saludo() {
 }
 
 export function Hoy() {
-  const { me, settings, pending, waiting, setTab } = useApp();
+  const { me, settings, pending, waiting, setTab, bump, can } = useApp();
   const hoy = todayISO();
   const fin = addDays(hoy, 6);
+  const [recordar, setRecordar] = useState(false);
   const { data, loading } = useLoad(() => api<Cita[]>(`reservations&from=${hoy}&to=${fin}`), [hoy]);
   const [open, setOpen] = useState<Cita | null>(null);
   const [, tick] = useState(0);
@@ -29,6 +32,12 @@ export function Hoy() {
   const ahora = activasHoy.find((c) => toMin(c.time) <= m && m < toMin(c.time) + c.duration);
   const siguiente = activasHoy.find((c) => toMin(c.time) > m);
   const proximos = Array.from({ length: 6 }, (_, i) => addDays(hoy, i + 1)).map((d) => ({ d, list: (data || []).filter((c) => c.date === d && ACTIVE.includes(c.status)) }));
+  const porMarcar = activasHoy.filter((c) => c.attended === 0 && toMin(c.time) + c.duration <= m);
+  const deManana = (data || []).filter((c) => c.date === addDays(hoy, 1) && ACTIVE.includes(c.status));
+  async function marcar(c: Cita, attended: number) {
+    try { await api("reservation_attend", { body: { id: c.id, attended } }); bump(); toast(attended === 1 ? `${c.name}: vino` : `${c.name}: no vino`); }
+    catch (e: any) { toast.error(e.message); }
+  }
   const nombre = (me?.name || me?.username || "").split(" ")[0];
 
   return (
@@ -58,6 +67,29 @@ export function Hoy() {
         <span className="text-muted-foreground">Después</span><span className="font-semibold tabular">{siguiente.time}</span><span className="truncate">{siguiente.name} · {siguiente.service}</span><ArrowRight className="ml-auto h-4 w-4 shrink-0" />
       </button>}
 
+      {can("reservas") && porMarcar.length > 0 && (
+        <div className="mt-3 rounded-[28px] bg-card p-4 ring-1 ring-border">
+          <p className="px-1 text-sm font-semibold">¿Vinieron? <span className="font-normal text-muted-foreground">{porMarcar.length === 1 ? "1 cita por marcar" : `${porMarcar.length} citas por marcar`}</span></p>
+          <div className="mt-2 divide-y">
+            {porMarcar.map((c) => (
+              <div key={c.id} className="flex items-center gap-3 py-2">
+                <span className="w-12 text-right text-sm font-semibold tabular">{c.time}</span>
+                <button type="button" onClick={() => setOpen(c)} className="min-w-0 flex-1 text-left"><p className="truncate font-semibold">{c.name}</p><p className="truncate text-xs text-muted-foreground">{c.service}</p></button>
+                <button type="button" aria-label={"Vino " + c.name} onClick={() => marcar(c, 1)} className="grid h-10 w-10 place-items-center rounded-full bg-salvia/15 text-salvia hover:bg-salvia/25"><UserCheck className="h-5 w-5" /></button>
+                <button type="button" aria-label={"No vino " + c.name} onClick={() => marcar(c, -1)} className="grid h-10 w-10 place-items-center rounded-full bg-destructive/15 text-destructive hover:bg-destructive/25"><UserX className="h-5 w-5" /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {deManana.length > 0 && (
+        <button type="button" onClick={() => setRecordar(true)} className="mt-3 flex w-full items-center gap-4 rounded-[28px] bg-card p-4 text-left ring-1 ring-border hover:bg-secondary">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/15 text-primary"><Bell className="h-5 w-5" /></span>
+          <span className="min-w-0 flex-1"><span className="block font-semibold">Recordar las citas de mañana</span><span className="block text-sm text-muted-foreground">{deManana.length === 1 ? "1 paciente" : `${deManana.length} pacientes`} · un WhatsApp a cada uno con el mensaje ya escrito</span></span>
+          <ArrowRight className="h-4 w-4 shrink-0" />
+        </button>
+      )}
+
       <SectionTitle>Agenda de hoy</SectionTitle>
       {loading && !data ? <div className="py-10 text-center"><Spinner /></div> : <DayTimeline date={hoy} citas={deHoy} onOpen={setOpen} />}
 
@@ -77,7 +109,39 @@ export function Hoy() {
       </Chips>
 
       <CitaSheet cita={open} onClose={() => setOpen(null)} />
+      <Recordar open={recordar} onClose={() => setRecordar(false)} citas={deManana} centro={settings?.name || ""} />
     </div>
+  );
+}
+
+/* Recordatorios de mañana: una fila por paciente con su WhatsApp ya escrito. Lo enviado se marca en este dispositivo. */
+function Recordar({ open, onClose, citas, centro }: { open: boolean; onClose: () => void; citas: Cita[]; centro: string }) {
+  const key = "recordadas";
+  const [hechas, setHechas] = useState<number[]>(() => { try { return JSON.parse(LS.get(key) || "[]"); } catch { return []; } });
+  const marcar = (id: number) => { const n = [...new Set([...hechas, id])].slice(-300); setHechas(n); LS.set(key, JSON.stringify(n)); };
+  const quedan = citas.filter((c) => !hechas.includes(c.id)).length;
+  return (
+    <Hoja open={open} onClose={onClose} title="Recordar las de mañana" subtitle={quedan ? `Quedan ${quedan} por avisar` : "Todos avisados"}
+      footer={<Button className="w-full" variant="secondary" onClick={onClose}>Hecho</Button>}>
+      <div className="space-y-1">
+        {citas.map((c) => {
+          const ok = hechas.includes(c.id);
+          return (
+            <div key={c.id} className="flex items-center gap-3 rounded-2xl px-2 py-2.5">
+              <span className="w-12 text-right text-sm font-semibold tabular">{c.time}</span>
+              <Avatar name={c.name} size={38} />
+              <div className="min-w-0 flex-1"><p className="truncate font-semibold">{c.name}</p><p className="truncate text-xs text-muted-foreground">{c.service}{c.status !== "confirmada" ? " · sin confirmar" : ""}</p></div>
+              {c.phone ? (
+                <a href={waHref(c.phone, recordatorio(c, centro))} target="_blank" rel="noopener" onClick={() => marcar(c.id)}
+                  className={ok ? "inline-flex h-10 items-center gap-1.5 rounded-full bg-secondary px-3 text-sm font-semibold text-muted-foreground" : "inline-flex h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"}>
+                  {ok ? <><Check className="h-4 w-4" />Avisado</> : <><MessageCircle className="h-4 w-4" />Avisar</>}
+                </a>
+              ) : <span className="text-xs text-muted-foreground">Sin teléfono</span>}
+            </div>
+          );
+        })}
+      </div>
+    </Hoja>
   );
 }
 

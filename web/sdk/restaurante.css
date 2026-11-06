@@ -215,3 +215,33 @@ img[data-zoom] { cursor: zoom-in; }
 .bk-svc input:checked + span { background: var(--r-accent); color: var(--r-accent-text); border-color: var(--r-accent); }
 .bk-svc input:checked + span small { color: inherit; opacity: .85; }
 .bk-svc input:focus-visible + span { outline: 2px solid var(--r-accent); outline-offset: 2px; }
+
+/* Pedir cita en 2 pasos: tratamiento elegido en una línea, «Lo antes posible», llamar/WhatsApp y resumen del paso 2 */
+.bk-svc-chosen, .bk-pick { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border: 1px solid var(--r-accent); border-radius: var(--r-radius, 14px); background: color-mix(in srgb, var(--r-accent) 12%, transparent); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.bk-svc-chosen span, .bk-pick span { display: grid; gap: 2px; min-width: 0; }
+.bk-svc-chosen b, .bk-pick b { font-weight: 600; font-size: 1.05rem; }
+.bk-svc-chosen small, .bk-pick small { color: var(--r-muted); font-variant-numeric: tabular-nums; }
+.bk-svc-chosen em, .bk-pick em { font-style: normal; font-weight: 600; font-size: .9rem; color: var(--r-accent); white-space: nowrap; }
+.bk-pick { margin-bottom: 18px; }
+.bk-svc-box.is-chosen .bk-help { display: none; }
+.bk-when { display: grid; gap: 4px; margin-top: 6px; }
+.bk-soon { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.bk-soon .bk-msg { grid-column: 1 / -1; }
+.bk-soon-b { display: grid; gap: 2px; padding: 10px 8px; min-height: 58px; border: 1px solid var(--r-line); border-radius: var(--r-radius, 14px); background: var(--r-field); color: inherit; font: inherit; cursor: pointer; text-align: center; transition: background .15s, border-color .15s; }
+.bk-soon-b small { color: var(--r-muted); font-size: .78rem; text-transform: capitalize; }
+.bk-soon-b b { font-size: 1.2rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.bk-soon-b:hover, .bk-soon-b:focus-visible { border-color: var(--r-accent); outline: none; }
+.bk-slot:hover:not(:disabled) { border-color: var(--r-accent); }
+.bk-slots { margin-top: 14px; }
+.bk-alt { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--r-line); font-size: .9rem; color: var(--r-muted); }
+.bk-alt a { color: inherit; text-underline-offset: 3px; }
+.bk-alt a.is-off { cursor: not-allowed; text-decoration: none; opacity: .8; }
+.bk-more { margin-top: 4px; }
+.bk-more summary { cursor: pointer; padding: 6px 0; font-weight: 600; font-size: .95rem; }
+.bk-more summary span { font-weight: 400; color: var(--r-muted); }
+.bk-more[open] summary { margin-bottom: 8px; }
+.bk-more > label { margin-top: 10px; }
+.bk-btn-wide { width: 100%; min-height: 54px; font-size: 1.05rem; }
+@media (max-width: 380px) { .bk-soon { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.bk-svc-box .bk-svcs { max-height: none; overflow: visible; }
+.bk-svcs[hidden], .bk-svc-chosen[hidden] { display: none; }

@@ -40,6 +40,31 @@ function service_minutes(?array $service): int
  * ofrecen horas en las que cabe entera, sin pasarse del cierre.
  * $ignoreRules = true lo usa el panel: deja apuntar citas aunque esté lleno o fuera de plazo.
  */
+/**
+ * Primeras horas libres para un tratamiento, buscando día a día desde hoy (como mucho 30 días).
+ * Para el botón «Lo antes posible» de la ventana de cita: [{date, time}], como mucho una o dos por día
+ * para que salgan varios días donde elegir.
+ */
+function next_slots(int $minutes = 0, int $n = 6): array
+{
+    $out = [];
+    $n = max(1, min(12, $n));
+    for ($i = 0; $i < 30 && count($out) < $n; $i++) {
+        $d = date('Y-m-d', strtotime(today() . " +$i days"));
+        $day = day_slots($d, false, 0, $minutes);
+        if (!$day['open']) continue;
+        $libres = array_values(array_filter($day['slots'], fn($x) => $x['left'] > 0));
+        if (!$libres) continue;
+        // La primera de la mañana y la primera de la tarde
+        $am = array_values(array_filter($libres, fn($x) => $x['time'] < '15:00'));
+        $pm = array_values(array_filter($libres, fn($x) => $x['time'] >= '15:00'));
+        foreach (array_filter([$am[0] ?? null, $pm[0] ?? null]) as $x) {
+            if (count($out) < $n) $out[] = ['date' => $d, 'time' => $x['time']];
+        }
+    }
+    return $out;
+}
+
 function day_slots(string $date, bool $ignoreRules = false, int $excludeId = 0, int $minutes = 0): array
 {
     if (!is_date($date)) throw new ValidationError('Fecha no válida');
@@ -339,6 +364,7 @@ function res_out(array $r): array
         'service' => (string)($r['service'] ?? ''),       // tratamiento (nombre en el momento de reservar)
         'duration' => (int)($r['duration'] ?? 0) ?: (int)settings()['table_minutes'],
         'patient_id' => (int)($r['patient_id'] ?? 0),     // ficha del paciente, si está enlazada
+        'attended' => (int)($r['attended'] ?? 0),         // 1 vino, -1 no vino, 0 sin marcar
     ];
 }
 
@@ -420,6 +446,16 @@ function resend_reservation_whatsapp(int $id): array
     if ($row['status'] !== 'esperando' || $row['source'] !== 'web') throw new ValidationError('Esta reserva no está esperando al cliente');
     $wa = wa_send_confirmation($row);
     return get_reservation_admin($id) + ['wa_sent' => $wa === '', 'wa_error' => $wa];
+}
+
+/** Marcar si el paciente vino (1), no vino (-1) o quitar la marca (0). Solo citas que ya han empezado. */
+function set_attended(int $id, int $v): array
+{
+    $row = get_reservation($id);
+    if (!in_array($v, [-1, 0, 1], true)) throw new ValidationError('Valor no válido');
+    if ($row['date'] . ' ' . $row['time'] > date('Y-m-d H:i')) throw new ValidationError('La cita todavía no ha empezado');
+    q('UPDATE reservations SET attended = ?, updated_at = ? WHERE id = ?', [$v, now(), $id]);
+    return get_reservation_admin($id);
 }
 
 /** Crear o editar una reserva desde el panel (p. ej. una llamada). */

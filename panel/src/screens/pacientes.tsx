@@ -152,7 +152,8 @@ export function FichaPaciente({ id }: { id: number }) {
   const notas = p.notes || [];
   const citas = p.appointments || [];
   const proxima = citas.filter((c) => c.date >= todayISO() && ["pendiente", "esperando", "confirmada"].includes(c.status)).sort((x, y) => (x.date + x.time).localeCompare(y.date + y.time))[0];
-  const hechas = citas.filter((c) => c.date < todayISO() && c.status === "confirmada").length;
+  const hechas = citas.filter((c) => c.date < todayISO() && c.status === "confirmada" && c.attended !== -1).length;
+  const faltas = citas.filter((c) => c.attended === -1).length;
 
   async function bono(body: Record<string, number>) {
     try { await api("bono", { body: { id, ...body } }); reload(); bump(); } catch (e: any) { toast.error(e.message); }
@@ -171,7 +172,7 @@ export function FichaPaciente({ id }: { id: number }) {
           <div className="min-w-0 pb-1">
             <p className="text-xs font-bold uppercase tracking-[.16em] text-white/80">Paciente</p>
             <h1 className="font-display text-4xl leading-none text-white sm:text-6xl">{p.name}</h1>
-            <p className="mt-2 text-sm text-white/80">{hechas} {hechas === 1 ? "sesión" : "sesiones"} · {notas.length} {notas.length === 1 ? "nota" : "notas"}{p.reason ? ` · ${p.reason}` : ""}</p>
+            <p className="mt-2 text-sm text-white/80">{hechas} {hechas === 1 ? "sesión" : "sesiones"} · {notas.length} {notas.length === 1 ? "nota" : "notas"}{faltas ? ` · ${faltas} ${faltas === 1 ? "falta" : "faltas"}` : ""}{p.reason ? ` · ${p.reason}` : ""}</p>
           </div>
         </div>
       </header>

@@ -23,7 +23,7 @@ function schema_sql(bool $sqlite): array
             customer_id INT NOT NULL DEFAULT 0, verify_token VARCHAR(255) NOT NULL DEFAULT '', seq INT NOT NULL DEFAULT 0,
             cancel_by VARCHAR(12) NOT NULL DEFAULT '', deleted TINYINT NOT NULL DEFAULT 0, lang CHAR(2) NOT NULL DEFAULT 'es',
             reminders TINYINT NOT NULL DEFAULT 0, service_id INT NOT NULL DEFAULT 0, service VARCHAR(160) NOT NULL DEFAULT '',
-            duration INT NOT NULL DEFAULT 0, patient_id INT NOT NULL DEFAULT 0)$tail",
+            duration INT NOT NULL DEFAULT 0, patient_id INT NOT NULL DEFAULT 0, attended INT NOT NULL DEFAULT 0)$tail",
         // Fichas de pacientes del centro (todo lo personal va cifrado). No se borran a las 24 h como las reservas:
         // la historia clínica se guarda mientras haga falta para la asistencia (Ley 41/2002, mínimo 5 años).
         "CREATE TABLE IF NOT EXISTS patients (id $ai, name VARCHAR(512) NOT NULL, phone VARCHAR(255) NOT NULL DEFAULT '', email VARCHAR(512) NOT NULL DEFAULT '',

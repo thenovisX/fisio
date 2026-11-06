@@ -488,4 +488,13 @@ return [
     'Ya tienes una cuenta en %s' => ['en' => 'You already have an account at %s', 'pt' => 'Já tem uma conta em %s', 'gl' => 'Xa tes unha conta en %s'],
     'Alguien (seguramente tú) ha intentado crear una cuenta con este email, pero ya tienes una. Entra con tu contraseña o, si no la recuerdas, pide una nueva aquí:' => ['en' => 'Someone (probably you) tried to create an account with this email, but you already have one. Sign in with your password or, if you do not remember it, request a new one here:', 'pt' => 'Alguém (provavelmente você) tentou criar uma conta com este email, mas já tem uma. Entre com a sua palavra-passe ou, se não se lembrar, peça uma nova aqui:', 'gl' => 'Alguén (seguramente ti) intentou crear unha conta con este correo, pero xa tes unha. Entra co teu contrasinal ou, se non o lembras, pide un novo aquí:'],
     'Si no has sido tú, ignora este email: tu cuenta sigue igual.' => ['en' => 'If it was not you, ignore this email: your account is unchanged.', 'pt' => 'Se não foi você, ignore este email: a sua conta continua igual.', 'gl' => 'Se non fuches ti, ignora este correo: a túa conta segue igual.'],
+    'Paso %d de 2' => ['en' => 'Step %d of 2', 'pt' => 'Passo %d de 2', 'gl' => 'Paso %d de 2'],
+    'Cambiar' => ['en' => 'Change', 'pt' => 'Alterar', 'gl' => 'Cambiar'],
+    '¿No sabes cuál? Elige la primera valoración y te lo decimos en consulta.' => ['en' => 'Not sure which? Choose the first assessment and we will tell you at the appointment.', 'pt' => 'Não sabe qual? Escolha a primeira avaliação e dizemos-lhe na consulta.', 'gl' => 'Non sabes cal? Escolle a primeira valoración e dicímoscho na consulta.'],
+    'Lo antes posible' => ['en' => 'As soon as possible', 'pt' => 'O mais cedo possível', 'gl' => 'Canto antes'],
+    'O elige día' => ['en' => 'Or pick a day', 'pt' => 'Ou escolha o dia', 'gl' => 'Ou escolle día'],
+    'te enviaremos un WhatsApp para confirmar' => ['en' => 'we will send you a WhatsApp to confirm', 'pt' => 'enviaremos um WhatsApp para confirmar', 'gl' => 'enviarémosche un WhatsApp para confirmar'],
+    'Añadir email o un comentario' => ['en' => 'Add an email or a comment', 'pt' => 'Adicionar email ou um comentário', 'gl' => 'Engadir correo ou un comentario'],
+    'Recordar mis datos en este dispositivo' => ['en' => 'Remember my details on this device', 'pt' => 'Lembrar os meus dados neste dispositivo', 'gl' => 'Lembrar os meus datos neste dispositivo'],
+    'Pedir la cita' => ['en' => 'Book the appointment', 'pt' => 'Marcar a consulta', 'gl' => 'Pedir a cita'],
 ];

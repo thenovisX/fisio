@@ -6,7 +6,7 @@ Base para hacer la web de un centro de fisioterapia: portada con diseño propio,
 
 Lo que ya funciona:
 
-- **Citas por tratamiento.** Cada tratamiento tiene su duración (30, 45, 60 min…) y su precio. El paciente elige tratamiento, día y hora libre, y confirma por WhatsApp. Las horas libres se calculan con la duración real: una sesión de 60 min a las 10:00 ocupa hueco hasta las 11:00, y la última hora que se ofrece es la que termina antes de cerrar.
+- **Citas por tratamiento, en 2 pasos.** Cada tratamiento tiene su duración (30, 45, 60 min…) y su precio. Paso 1: el paciente elige tratamiento y toca una hora, de «Lo antes posible» (las primeras horas libres de los próximos días) o de cualquier día. Paso 2: nombre y móvil, que la web puede recordar en su dispositivo para la próxima vez. Luego confirma por WhatsApp. Llamar o escribir por WhatsApp quedan como enlaces debajo. Las horas libres se calculan con la duración real: una sesión de 60 min a las 10:00 ocupa hueco hasta las 11:00, y la última hora que se ofrece es la que termina antes de cerrar.
 - **Varios fisios o cabinas a la vez**: el ajuste «Fisios o cabinas a la vez» (`capacity`) dice cuántas citas caben al mismo tiempo.
 - **Panel nuevo** (móvil, ordenador y app Android) inspirado en Wallapop y Spotify:
   - **Hoy**: quién está en sesión ahora (con barra de progreso), la siguiente cita, peticiones nuevas y la agenda del día con los **huecos libres**: tocar un hueco apunta una cita ahí.
@@ -14,6 +14,9 @@ Lo que ya funciona:
   - **Bandeja**: peticiones de la web como mensajes. Aceptar abre WhatsApp con el texto escrito; rechazar propone otras horas libres.
   - **Pacientes**: fichas con motivo de consulta, antecedentes, **notas de sesión**, gráfica de **dolor (EVA 0–10)**, historial de citas y **bonos** de sesiones que se descuentan al apuntar la nota.
   - Botón **+** en el centro para apuntar una cita en una sola hoja (paciente, tratamiento, día y hora).
+  - En cada cita: **¿Vino?** (vino / no vino, y las faltas salen en la ficha), **Siguiente sesión** con un toque (mismo tratamiento y hora dentro de 1 o 2 semanas; si está ocupado, abre «Nueva cita» en ese día), **Recordar** por WhatsApp con el mensaje escrito y **Cambiar día u hora**.
+  - En Hoy: «¿Vinieron?» con las citas ya terminadas por marcar y **Recordar las citas de mañana** (un WhatsApp a cada paciente).
+  - En Agenda: **Buscar cita** por nombre, teléfono o tratamiento (próximas, sin confirmar o pasadas).
   - **Más**: tratamientos como tarjetas, horario, agenda, fotos de la web y contraseña. Lo menos usado (usuarios, correo, idiomas, textos legales, WhatsApp automático) sigue en «Ajustes avanzados» (`panel/avanzado/`).
 - **Tema «Fibra»**: portada artística con fondo de fibras en Three.js, desplazamiento suave (Lenis), animaciones con GSAP y ScrollTrigger y títulos con SplitType. Todas las librerías y fuentes van dentro del tema (sin CDN). Respeta «reducir movimiento» y funciona sin WebGL.
 - **Cuentas de pacientes**, borrado de datos, cuatro idiomas (español, inglés, portugués y gallego), textos legales, SEO, emails por Gmail, WhatsApp automático opcional y seguridad (datos cifrados, bloqueo por intentos): todo lo del backend original, ver más abajo y [SEGURIDAD.md](SEGURIDAD.md).

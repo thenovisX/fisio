@@ -46,12 +46,13 @@ function patient_out(array $r, array $stats = []): array
 function patients_list(): array
 {
     $stats = [];
-    foreach (q("SELECT patient_id, rdate, rtime, status FROM reservations WHERE patient_id > 0 AND deleted = 0 ORDER BY rdate, rtime")->fetchAll() as $r) {
+    foreach (q("SELECT patient_id, rdate, rtime, status, attended FROM reservations WHERE patient_id > 0 AND deleted = 0 ORDER BY rdate, rtime")->fetchAll() as $r) {
         $st = &$stats[(int)$r['patient_id']];
-        $st ??= ['visits' => 0, 'last' => '', 'next' => ''];
+        $st ??= ['visits' => 0, 'missed' => 0, 'last' => '', 'next' => ''];
         $when = $r['rdate'] . ' ' . $r['rtime'];
         if (!in_array($r['status'], RES_ACTIVE, true)) { unset($st); continue; }
-        if ($when < date('Y-m-d H:i')) { $st['visits']++; $st['last'] = $when; }
+        if ($when < date('Y-m-d H:i') && (int)$r['attended'] === -1) $st['missed']++;
+        elseif ($when < date('Y-m-d H:i')) { $st['visits']++; $st['last'] = $when; }
         elseif ($st['next'] === '') $st['next'] = $when;
         unset($st);
     }
@@ -62,7 +63,7 @@ function patients_list(): array
     $out = [];
     foreach (q('SELECT * FROM patients ORDER BY updated_at DESC')->fetchAll() as $r) {
         $id = (int)$r['id'];
-        $out[] = patient_out($r, ($stats[$id] ?? ['visits' => 0, 'last' => '', 'next' => '']) + ($notes[$id] ?? ['notes' => 0, 'last_note' => '']));
+        $out[] = patient_out($r, ($stats[$id] ?? ['visits' => 0, 'missed' => 0, 'last' => '', 'next' => '']) + ($notes[$id] ?? ['notes' => 0, 'last_note' => '']));
     }
     return $out;
 }

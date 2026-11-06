@@ -127,7 +127,7 @@ Pon también `<?= $cancelar_form('Cancelar la cita', 'mi-clase') ?>`: deja al cl
 
 Cualquier elemento con `data-book` abre la ventana de cita, por ejemplo `<a href="#reservar" data-book>Pedir cita</a>`. No hace falta nada más.
 
-Con el id de un tratamiento, `data-book="12"`, la ventana se abre con ese tratamiento ya elegido. Úsalo en las tarjetas de tratamientos: `<a href="#reservar" data-book="<?= (int)$d['id'] ?>">`. Cada tratamiento de `$carta` trae `duration` (minutos), además de `name`, `description`, `price` y `photo`. El primer paso de la ventana es «¿Qué necesitas?» (tratamiento y día) y las horas que se ofrecen ya tienen en cuenta la duración.
+Con el id de un tratamiento, `data-book="12"`, la ventana se abre con ese tratamiento ya elegido. Úsalo en las tarjetas de tratamientos: `<a href="#reservar" data-book="<?= (int)$d['id'] ?>">`. Cada tratamiento de `$carta` trae `duration` (minutos), además de `name`, `description`, `price` y `photo`. La ventana tiene 2 pasos: 1) «¿Qué necesitas?» (tratamiento) y la hora, con «Lo antes posible» y la lista de días; tocar una hora pasa al paso 2; 2) nombre y móvil. Las horas que se ofrecen ya tienen en cuenta la duración. Llamar y WhatsApp salen como enlaces al pie del paso 1.
 
 Si el restaurante tiene teléfono, la ventana empieza preguntando **«¿Cómo quieres reservar?»**: reservar online o llamar. «Llamar» se desactiva y avisa («Ahora estamos cerrados. Podrás llamarnos hoy a las 20:00») cuando la hora del restaurante queda fuera de su horario de apertura o es un día cerrado. Sin teléfono, la ventana va directa a la reserva online.
 
